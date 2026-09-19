@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","properties":{"name":"Pallikaranai-West-1","category":"wetland","expected_change":"yes","notes":"empty 2020-12 (Wayback), built by 2022-06"},"geometry":{"type":"Polygon","coordinates":[[[80.194669,12.941912],[80.192084,12.939668],[80.194134,12.937482],[80.197715,12.938539],[80.197016,12.941608],[80.195643,12.941942],[80.194669,12.941912]]]}},
+{"type":"Feature","properties":{"name":"Pallikaranai-Control-Marsh","category":"wetland","expected_change":"no","notes":"marsh interior, unchanged 2020-2023 (Wayback)"},"geometry":{"type":"Polygon","coordinates":[[[80.188268,12.944686],[80.187674,12.943528],[80.188692,12.942949],[80.189711,12.942949],[80.19022,12.944686],[80.189244,12.945265],[80.188268,12.944686]]]}},
+{"type":"Feature","properties":{"name":"Pallikaranai-Control-Builtup","category":"government_plot","expected_change":"no","notes":"fully built before 2020, unchanged 2020-2023 (Wayback)"},"geometry":{"type":"Polygon","coordinates":[[[80.197763,12.943598],[80.196885,12.943288],[80.197017,12.94209],[80.198652,12.941791],[80.198861,12.943534],[80.197763,12.943598]]]}}
+]}

@@ -16,7 +16,7 @@ Built with **100% free** data, software, and services. See `docs/` for the full 
 
 ## Status
 
-Phase 0 (Foundation) — see `docs/07-tracker.md` for the exact state.
+Phases 0–6 done (backend API, worker, scheduler, detections + review, full web UI). Phase 7 (PDF reports, alerts) next — see `docs/07-tracker.md` for the exact state.
 
 ## Stack
 

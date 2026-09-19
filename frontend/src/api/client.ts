@@ -40,6 +40,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       ...(init.headers ?? {}),
     },
   });
+  if (res.status === 204) return undefined as T;
   if (!res.ok) {
     const body = await res
       .json()
