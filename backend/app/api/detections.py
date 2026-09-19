@@ -14,15 +14,19 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from geoalchemy2.shape import to_shape
 from pydantic import ValidationError
+from sqlalchemy import select
 
-from app.api.deps import ActiveUser, DbDep, ReviewerUser
+from app.alerts import service as alerts
+from app.api.deps import ActiveUser, DbDep, ReviewerUser, SettingsDep
 from app.db.enums import ConfidenceClass, DetectionStatus, UserRole
-from app.db.models import Detection, User
+from app.db.models import Alert, Detection, Report, User
+from app.reports.service import generate_report
 from app.repositories import DetectionRepository, UserRepository
 from app.repositories.base import from_db
 from app.schemas.detections import (
     ADMIN_ONLY_TRANSITIONS,
     TRANSITIONS,
+    AlertOut,
     DetectionDetail,
     DetectionFeature,
     DetectionFeatureCollection,
@@ -30,6 +34,7 @@ from app.schemas.detections import (
     DetectionProps,
     EvidenceOut,
     HistoryOut,
+    ReportOut,
     ScanSummary,
     StatusChange,
 )
@@ -136,7 +141,14 @@ def allowed_transitions(d: Detection, user: User) -> list[DetectionStatus]:
 
 
 def _detail(d: Detection, db: DbDep, user: User) -> DetectionDetail:
-    names = UserRepository(db).names_for([h.changed_by for h in d.history if h.changed_by])
+    reports = list(
+        db.scalars(
+            select(Report).where(Report.detection_id == d.id).order_by(Report.generated_at.desc())
+        )
+    )
+    ids = [h.changed_by for h in d.history if h.changed_by]
+    ids += [r.generated_by for r in reports if r.generated_by]
+    names = UserRepository(db).names_for(ids)
     history = []
     for h in d.history:
         ho = HistoryOut.model_validate(h)
@@ -177,6 +189,16 @@ def _detail(d: Detection, db: DbDep, user: User) -> DetectionDetail:
         evidence=evidence,
         history=list(reversed(history)),  # newest first
         allowed_transitions=allowed_transitions(d, user),
+        reports=[
+            ReportOut(
+                id=r.id,
+                url=f"/api/v1/files/{r.path}",
+                generated_at=r.generated_at,
+                generated_by_name=names.get(r.generated_by) if r.generated_by else None,
+            )
+            for r in reports
+        ],
+        alerts=[AlertOut.model_validate(a) for a in alerts.alerts_for(db, d.id)],
     )
 
 
@@ -331,7 +353,11 @@ def get_detection(detection_id: uuid.UUID, user: ActiveUser, db: DbDep) -> Detec
 
 @router.patch("/{detection_id}/status", response_model=DetectionDetail)
 def change_status(
-    detection_id: uuid.UUID, body: StatusChange, user: ReviewerUser, db: DbDep
+    detection_id: uuid.UUID,
+    body: StatusChange,
+    user: ReviewerUser,
+    db: DbDep,
+    settings: SettingsDep,
 ) -> DetectionDetail:
     """Apply a review decision (appflow Flow D step 4–5). Every change writes an audit row."""
     d = _get_or_404(db, detection_id)
@@ -366,4 +392,44 @@ def change_status(
         "detection status changed",
         extra={"detection_id": str(d.id), "user_id": str(user.id), "step": body.status.value},
     )
+    if body.status == DetectionStatus.confirmed:
+        # Flow E step 3–4: alerts never block the review; failures are stored and retryable.
+        try:
+            alerts.dispatch_for_confirmation(db, settings, _get_or_404(db, detection_id))
+            db.commit()
+        except Exception:  # noqa: BLE001 - defensive; delivery problems are per-row already
+            logger.exception("alert dispatch crashed", extra={"detection_id": str(d.id)})
+            db.rollback()
+    return _detail(_get_or_404(db, detection_id), db, user)
+
+
+@router.post("/{detection_id}/report", response_model=DetectionDetail, status_code=201)
+def create_report(
+    detection_id: uuid.UUID, user: ReviewerUser, db: DbDep, settings: SettingsDep
+) -> DetectionDetail:
+    """Build a PDF for this detection (Flow E step 2). Any status is allowed; the PDF states
+    the status it had when generated."""
+    d = _get_or_404(db, detection_id)
+    generate_report(db, settings.data_dir, d, user)
+    db.commit()
+    return _detail(_get_or_404(db, detection_id), db, user)
+
+
+@router.post("/{detection_id}/alerts/{alert_id}/retry", response_model=DetectionDetail)
+def retry_alert(
+    detection_id: uuid.UUID,
+    alert_id: uuid.UUID,
+    user: ReviewerUser,
+    db: DbDep,
+    settings: SettingsDep,
+) -> DetectionDetail:
+    d = _get_or_404(db, detection_id)
+    a = db.get(Alert, alert_id)
+    if a is None or a.detection_id != d.id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    try:
+        alerts.retry(db, settings, d, a)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    db.commit()
     return _detail(_get_or_404(db, detection_id), db, user)

@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileText } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ApiRequestError } from '@/api/client';
 import {
+  createReport,
   fetchBlobUrl,
   getDetection,
   REASON_LABELS,
+  retryAlert,
   setDetectionStatus,
   type DetectionStatus,
   type ReasonCode,
@@ -63,6 +66,34 @@ export function DetectionDetailPage() {
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
+  const report = useMutation({
+    mutationFn: () => createReport(id),
+    onSuccess: (d) => {
+      qc.setQueryData(['detection', id], d);
+      toast('Report ready.');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+  const retry = useMutation({
+    mutationFn: (alertId: string) => retryAlert(id, alertId),
+    onSuccess: (d) => {
+      qc.setQueryData(['detection', id], d);
+      const a = d.alerts.find((x) => x.status === 'failed');
+      toast(
+        a ? 'Still failing — see the error next to the alert.' : 'Alert sent.',
+        a ? 'error' : 'info',
+      );
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+  const openReport = async (url: string) => {
+    try {
+      const blob = await fetchBlobUrl(url);
+      window.open(blob, '_blank', 'noopener');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  };
 
   const geoms = useMemo(() => [det.data?.geometry], [det.data]);
   const bbox = useMemo(() => bboxOf(geoms), [geoms]);
@@ -199,6 +230,76 @@ export function DetectionDetailPage() {
               </ol>
             )}
           </Card>
+          <Card
+            title="Report"
+            action={
+              <Button
+                variant={d.properties.status === 'confirmed' ? 'primary' : 'secondary'}
+                icon={FileText}
+                busy={report.isPending}
+                onClick={() => report.mutate()}
+              >
+                Generate report
+              </Button>
+            }
+          >
+            {d.reports.length === 0 ? (
+              <p className="text-[14px] text-soft">
+                A one-page PDF with the evidence, measurements and review history, ready to hand to
+                a field team.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {d.reports.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-baseline gap-x-3 text-[14px]">
+                    <button
+                      type="button"
+                      className="underline underline-offset-4 hover:text-cream"
+                      onClick={() => void openReport(r.url)}
+                    >
+                      PDF · {fmtDateTime(r.generated_at)}
+                    </button>
+                    {r.generated_by_name && (
+                      <span className="text-soft">by {r.generated_by_name}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          {d.alerts.length > 0 && (
+            <Card title="Alerts">
+              <ul className="space-y-2">
+                {d.alerts.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px]"
+                  >
+                    <Chip
+                      tone={
+                        a.status === 'sent' ? 'ok' : a.status === 'failed' ? 'danger' : 'neutral'
+                      }
+                    >
+                      {a.status}
+                    </Chip>
+                    <span className="font-mono text-[12px] text-soft">{a.provider}</span>
+                    <span>{a.recipient}</span>
+                    <span className="font-mono text-[12px] text-soft">
+                      {fmtDateTime(a.sent_at ?? a.created_at)}
+                    </span>
+                    {a.status === 'failed' && (
+                      <>
+                        <span className="w-full text-[13px] text-soft">{a.last_error}</span>
+                        <Button size="sm" busy={retry.isPending} onClick={() => retry.mutate(a.id)}>
+                          Retry ({a.attempts}/5)
+                        </Button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
