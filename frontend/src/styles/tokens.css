@@ -1,0 +1,28 @@
+/* Design tokens — docs/04-design.md §3. Do not add colors outside this file. */
+:root {
+  --base: #0d0b09;
+  --text: #f3efe6;
+  --text-soft: rgba(243, 239, 230, 0.7);
+  --text-dim: rgba(243, 239, 230, 0.46);
+  --hairline: rgba(243, 239, 230, 0.16);
+  --hairline-strong: rgba(243, 239, 230, 0.28);
+
+  --surface-1: rgba(243, 239, 230, 0.04);
+  --surface-2: rgba(243, 239, 230, 0.07);
+  --surface-3: rgba(243, 239, 230, 0.11);
+  --panel: rgba(13, 11, 9, 0.78);
+  --glass: rgba(243, 239, 230, 0.1);
+
+  --sem-high: #e8735a;
+  --sem-medium: #e6b455;
+  --sem-low: #9aa79b;
+  --sem-ok: #8fbf9f;
+  --sem-danger: #e8735a;
+  --sem-info: #f3efe6;
+
+  --radius-card: 20px;
+  --radius-ctl: 12px;
+  --radius-pill: 999px;
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
