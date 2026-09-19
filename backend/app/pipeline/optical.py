@@ -95,3 +95,51 @@ def median_composite(stack: np.ndarray, valid: np.ndarray) -> Composite:
         # nanmedian warns on all-NaN slices; those become NaN, which is what we want.
         med = np.nanmedian(masked, axis=0).astype(np.float32)
     return Composite(bands=med, count=count, n_scenes=int(stack.shape[0]))
+
+
+# ---- Spectral indices (techspec §5.2 step 6) -----------------------------------------------
+# NDVI: vegetation index. Healthy plants reflect NIR strongly and absorb red -> high values.
+# NDBI: built-up index. Built/bare surfaces reflect SWIR more than NIR -> positive values.
+# BUI = NDBI - NDVI: pushes built-up up and vegetation down, so a veg -> built change is a big
+# positive jump. All are dimensionless ratios in [-1, 1].
+
+_DENOM_EPS = 1e-6
+
+
+def _normalized_difference(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """(a - b) / (a + b), NaN where the denominator is ~0 or either input is NaN."""
+    a = a.astype(np.float32, copy=False)
+    b = b.astype(np.float32, copy=False)
+    denom = a + b
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.where(np.abs(denom) > _DENOM_EPS, (a - b) / denom, np.nan)
+    return out.astype(np.float32)
+
+
+def ndvi(nir: np.ndarray, red: np.ndarray) -> np.ndarray:
+    """NDVI = (B08 - B04) / (B08 + B04)."""
+    return _normalized_difference(nir, red)
+
+
+def ndbi(swir: np.ndarray, nir: np.ndarray) -> np.ndarray:
+    """NDBI = (B11 - B08) / (B11 + B08)."""
+    return _normalized_difference(swir, nir)
+
+
+def bui(ndbi_arr: np.ndarray, ndvi_arr: np.ndarray) -> np.ndarray:
+    """BUI = NDBI - NDVI (range [-2, 2]; higher = more built-up / bare)."""
+    return (ndbi_arr.astype(np.float32) - ndvi_arr.astype(np.float32)).astype(np.float32)
+
+
+@dataclass(frozen=True)
+class Indices:
+    ndvi: np.ndarray
+    ndbi: np.ndarray
+    bui: np.ndarray
+
+
+def compute_indices(red: np.ndarray, nir: np.ndarray, swir: np.ndarray) -> Indices:
+    """All three indices from reflectance bands on the common grid."""
+    v = ndvi(nir, red)
+    b = ndbi(swir, nir)
+    return Indices(ndvi=v, ndbi=b, bui=bui(b, v))
