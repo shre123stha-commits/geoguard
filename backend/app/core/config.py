@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     database_url: str = "postgresql+psycopg://postgres:CHANGE_ME@localhost:5432/geoguard_db"
+    test_database_url: str = "postgresql+psycopg://postgres:CHANGE_ME@localhost:5432/geoguard_test"
     jwt_secret: SecretStr = SecretStr("CHANGE_ME")
     jwt_expire_minutes: int = Field(default=480, ge=5, le=24 * 60)
     data_dir: Path = Path("./data")
