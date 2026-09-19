@@ -22,26 +22,38 @@ const CONF_COLOR: Record<Confidence, string> = {
   low: '#9aa79b',
 };
 
-const BASEMAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
+/** Basemaps. OSM's public tile server blocks apps behind proxies (403 "Access blocked"),
+ *  so the default is Esri World Imagery (free for basemap use with attribution) with a
+ *  Carto dark labels option; both are configurable per techspec §4 (BASEMAP_URL). */
+const BASEMAPS = {
+  satellite: {
+    tiles: [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    ],
+    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+    paint: { 'raster-saturation': -0.35, 'raster-brightness-max': 0.8 },
   },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#0d0b09' } },
-    {
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-      paint: { 'raster-saturation': -0.85, 'raster-brightness-max': 0.55, 'raster-contrast': 0.15 },
+  dark: {
+    tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+    attribution: '© OpenStreetMap contributors © CARTO',
+    paint: { 'raster-saturation': -1, 'raster-brightness-max': 0.7 },
+  },
+} as const;
+type BasemapKey = keyof typeof BASEMAPS;
+
+function styleFor(key: BasemapKey): maplibregl.StyleSpecification {
+  const b = BASEMAPS[key];
+  return {
+    version: 8,
+    sources: {
+      base: { type: 'raster', tiles: [...b.tiles], tileSize: 256, attribution: b.attribution },
     },
-  ],
-};
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': '#0d0b09' } },
+      { id: 'base', type: 'raster', source: 'base', paint: { ...b.paint } },
+    ],
+  };
+}
 
 function bboxOf(fc: {
   features: { geometry: Geometry }[];
@@ -89,6 +101,7 @@ export function ReviewPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [basemap, setBasemap] = useState<BasemapKey>('satellite');
 
   const visible = useMemo(() => {
     if (!detections.data) return [];
@@ -104,7 +117,7 @@ export function ReviewPage() {
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: BASEMAP_STYLE,
+      style: styleFor('satellite'),
       center: [80.193, 12.941],
       zoom: 14.5,
       attributionControl: { compact: true },
@@ -173,6 +186,25 @@ export function ReviewPage() {
       mapRef.current = null;
     };
   }, []);
+  // Swap basemap tiles without rebuilding overlay layers.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const b = BASEMAPS[basemap];
+    map.removeLayer('base');
+    map.removeSource('base');
+    map.addSource('base', {
+      type: 'raster',
+      tiles: [...b.tiles],
+      tileSize: 256,
+      attribution: b.attribution,
+    });
+    map.addLayer(
+      { id: 'base', type: 'raster', source: 'base', paint: { ...b.paint } },
+      'parcel-line',
+    );
+  }, [basemap, mapReady]);
+
   // Push data into the map.
   useEffect(() => {
     const map = mapRef.current;
@@ -213,8 +245,8 @@ export function ReviewPage() {
   const lastScan = scans.data?.[scans.data.length - 1];
 
   return (
-    <div className="grid h-dvh grid-cols-1 md:grid-cols-[400px_1fr]">
-      <aside className="flex flex-col overflow-hidden border-r border-hair bg-base">
+    <div className="grid h-dvh grid-rows-[minmax(0,45dvh)_1fr] sm:grid-rows-1 sm:grid-cols-[380px_1fr]">
+      <aside className="flex min-h-0 flex-col overflow-hidden border-b border-hair bg-base sm:border-b-0 sm:border-r">
         <header className="border-b border-hair px-5 py-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">
             Prototype · Phase 1
@@ -254,6 +286,14 @@ export function ReviewPage() {
               {k !== 'all' && <span className="ml-1 text-dim">{counts[k]}</span>}
             </button>
           ))}
+          <span className="flex-1" />
+          <button
+            onClick={() => setBasemap(basemap === 'satellite' ? 'dark' : 'satellite')}
+            className="rounded-full px-3 py-1 font-mono text-[12px] text-soft hover:bg-s1"
+            title="Toggle basemap"
+          >
+            {basemap === 'satellite' ? 'satellite' : 'dark map'}
+          </button>
         </div>
 
         <ul className="flex-1 overflow-y-auto">
@@ -311,7 +351,7 @@ export function ReviewPage() {
             'Satellite detection is a screening aid. Verify on the ground before acting.'}
         </footer>
       </aside>
-      <div ref={containerRef} className="min-h-[50dvh]" />
+      <div ref={containerRef} className="min-h-0" />
     </div>
   );
 }
