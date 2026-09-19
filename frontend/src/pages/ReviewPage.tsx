@@ -4,18 +4,24 @@ import type { FeatureCollection as GJFeatureCollection, Geometry } from 'geojson
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  exportUrl,
+  fetchBlobUrl,
+  getDetection,
   getDetections,
   getParcels,
+  REASON_LABELS,
   setDetectionStatus,
   type Confidence,
+  type DetectionDetail,
   type DetectionProps,
   type DetectionStatus,
-} from '@/api/prototype';
+  type ReasonCode,
+} from '@/api/detections';
 import { createScan, isOpen, listScans } from '@/api/scans';
 import { useAuth } from '@/app/useAuth';
 import { Link } from 'react-router-dom';
 
-/** Phase-1 vertical slice: parcels + detections on a map with a review panel (tracker D42). */
+/** Review screen: parcels + detections on a map with a review panel (appflow Flow D). */
 
 const CONF_COLOR: Record<Confidence, string> = {
   high: '#e8735a',
@@ -82,7 +88,7 @@ export function ReviewPage() {
   const qc = useQueryClient();
   const { user, logout } = useAuth();
   const parcels = useQuery({ queryKey: ['parcels'], queryFn: getParcels });
-  const detections = useQuery({ queryKey: ['detections'], queryFn: getDetections });
+  const detections = useQuery({ queryKey: ['detections'], queryFn: () => getDetections() });
   const scans = useQuery({
     queryKey: ['scans'],
     queryFn: () => listScans(1, 1),
@@ -111,12 +117,20 @@ export function ReviewPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['scans'] }),
   });
   const status = useMutation({
-    mutationFn: (v: { id: number; status: DetectionStatus; note: string }) =>
-      setDetectionStatus(v.id, v.status, v.note),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['detections'] }),
+    mutationFn: (v: { id: string; status: DetectionStatus; note: string; reason?: ReasonCode }) =>
+      setDetectionStatus(v.id, v.status, v.note, v.reason),
+    onSuccess: (d) => {
+      qc.setQueryData(['detection', d.id], d);
+      void qc.invalidateQueries({ queryKey: ['detections'] });
+    },
   });
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const detail = useQuery({
+    queryKey: ['detection', selectedId],
+    queryFn: () => getDetection(selectedId as string),
+    enabled: selectedId !== null,
+  });
   const [filter, setFilter] = useState<Confidence | 'all'>('all');
   const [note, setNote] = useState('');
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -130,6 +144,7 @@ export function ReviewPage() {
       (f) => filter === 'all' || f.properties.confidence === filter,
     );
   }, [detections.data, filter]);
+  // MapLibre feature-state needs numeric or string ids: promote the UUID from properties.
   const selected =
     detections.data?.features.find((f) => f.properties.id === selectedId)?.properties ?? null;
 
@@ -151,6 +166,7 @@ export function ReviewPage() {
       });
       map.addSource('detections', {
         type: 'geojson',
+        promoteId: 'id',
         data: { type: 'FeatureCollection', features: [] },
       });
       map.addLayer({
@@ -195,7 +211,7 @@ export function ReviewPage() {
       });
       map.on('click', 'det-fill', (e: maplibregl.MapLayerMouseEvent) => {
         const f = e.features?.[0];
-        if (f) setSelectedId(Number(f.id));
+        if (f) setSelectedId(String(f.id));
       });
       map.on('mouseenter', 'det-fill', () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', 'det-fill', () => (map.getCanvas().style.cursor = ''));
@@ -342,9 +358,10 @@ export function ReviewPage() {
           >
             {basemap === 'satellite' ? 'satellite' : 'dark map'}
           </button>
+          <ExportMenu filter={filter} />
         </div>
 
-        <ul className="flex-1 overflow-y-auto">
+        <ul className="min-h-[120px] flex-1 overflow-y-auto">
           {detections.isPending && <li className="px-5 py-4 text-soft">Loading…</li>}
           {detections.isError && (
             <li className="px-5 py-4 text-soft">API not reachable. Start the backend.</li>
@@ -387,9 +404,11 @@ export function ReviewPage() {
         {selected && (
           <DetailPanel
             d={selected}
+            detail={detail.data}
             note={note}
             setNote={setNote}
-            onStatus={(s) => status.mutate({ id: selected.id, status: s, note })}
+            busy={status.isPending}
+            onStatus={(s, reason) => status.mutate({ id: selected.id, status: s, note, reason })}
             error={status.error as Error | null}
           />
         )}
@@ -404,35 +423,126 @@ export function ReviewPage() {
   );
 }
 
+function ExportMenu({ filter }: { filter: Confidence | 'all' }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const download = async (format: 'geojson' | 'csv') => {
+    setBusy(format);
+    try {
+      const url = await fetchBlobUrl(
+        exportUrl(format, filter === 'all' ? {} : { confidence: filter }),
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `detections.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <span className="ml-auto flex gap-1">
+      {(['geojson', 'csv'] as const).map((f) => (
+        <button
+          key={f}
+          disabled={busy !== null}
+          onClick={() => void download(f)}
+          className="rounded-full px-2.5 py-1 font-mono text-[12px] text-soft hover:bg-s1 disabled:opacity-50"
+          title={`Download the visible detections as ${f.toUpperCase()}`}
+        >
+          {busy === f ? '…' : f}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+function EvidenceImage({ url, label }: { url: string; label: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let obj: string | null = null;
+    fetchBlobUrl(url)
+      .then((u) => {
+        obj = u;
+        if (alive) setSrc(u);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [url]);
+  return (
+    <figure className="min-w-0 flex-1">
+      <div className="aspect-square w-full overflow-hidden rounded-ctl border border-hair bg-base">
+        {src ? (
+          <img src={src} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full animate-pulse bg-s2" />
+        )}
+      </div>
+      <figcaption className="mt-1 font-mono text-[11px] text-soft">{label}</figcaption>
+    </figure>
+  );
+}
+
+const EVIDENCE_LABEL = {
+  before_rgb: 'before',
+  after_rgb: 'after',
+  change_map: 'change',
+  overview: 'overview',
+} as const;
+
+const STATUS_LABEL: Record<DetectionStatus, string> = {
+  new: 'Reopen',
+  confirmed: 'Confirm',
+  field_visit: 'Field visit',
+  dismissed: 'Dismiss',
+};
+
 function DetailPanel({
   d,
+  detail,
   note,
   setNote,
+  busy,
   onStatus,
   error,
 }: {
   d: DetectionProps;
+  detail: DetectionDetail | undefined;
   note: string;
   setNote: (v: string) => void;
-  onStatus: (s: DetectionStatus) => void;
+  busy: boolean;
+  onStatus: (s: DetectionStatus, reason?: ReasonCode) => void;
   error: Error | null;
 }) {
   const m = d.metrics;
+  const [reason, setReason] = useState<ReasonCode>('bare_soil');
+  const allowed = detail?.allowed_transitions ?? [];
+  const canDismiss = allowed.includes('dismissed');
+  const dismissBlocked = reason === 'other' && !note.trim();
   return (
-    <section className="border-t border-hair-strong bg-s1 px-5 py-4">
+    <section className="max-h-[62vh] shrink-0 overflow-y-auto border-t border-hair-strong bg-s1 px-5 py-4">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-[18px] font-medium tracking-[-0.02em]">
-          Detection #{d.id}
+          {d.parcel_name} · {Math.round(d.area_m2).toLocaleString()} m²
         </h2>
         <span className="font-mono text-[12px]" style={{ color: CONF_COLOR[d.confidence] }}>
           {d.confidence.toUpperCase()}
         </span>
       </div>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 font-mono text-[12px]">
-        <dt className="text-soft">area</dt>
-        <dd>{Math.round(d.area_m2).toLocaleString()} m² (geodesic)</dd>
+      {detail && detail.evidence.length > 0 && (
+        <div className="mt-3 flex gap-2">
+          {detail.evidence.map((e) => (
+            <EvidenceImage key={e.kind} url={e.url} label={EVIDENCE_LABEL[e.kind]} />
+          ))}
+        </div>
+      )}
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 font-mono text-[12px]">
         <dt className="text-soft">sensors</dt>
-        <dd>{d.sources.join(' + ')}</dd>
+        <dd>{d.sources.join(' + ') || '—'}</dd>
         <dt className="text-soft">ΔBUI</dt>
         <dd>{m.d_bui_mean != null ? m.d_bui_mean.toFixed(2) : '—'}</dd>
         <dt className="text-soft">Δσ⁰ VV</dt>
@@ -441,38 +551,90 @@ function DetailPanel({
         <dd>{m.sar_overlap != null ? `${Math.round(m.sar_overlap * 100)} %` : '—'}</dd>
         <dt className="text-soft">score</dt>
         <dd>{d.score.toFixed(2)}</dd>
-        <dt className="text-soft">algorithm</dt>
-        <dd>{d.algorithm_version ?? '—'}</dd>
+        {detail && (
+          <>
+            <dt className="text-soft">periods</dt>
+            <dd>
+              {detail.scan.baseline_start} → {detail.scan.baseline_end} vs{' '}
+              {detail.scan.current_start} → {detail.scan.current_end}
+            </dd>
+            <dt className="text-soft">algorithm</dt>
+            <dd>{detail.scan.algorithm_version}</dd>
+          </>
+        )}
+        {d.matches_detection && (
+          <>
+            <dt className="text-soft">history</dt>
+            <dd>same site flagged in an earlier scan</dd>
+          </>
+        )}
         <dt className="text-soft">status</dt>
         <dd>
           {d.status}
           {d.status_note ? ` — ${d.status_note}` : ''}
         </dd>
       </dl>
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Note (required to dismiss)"
-        className="mt-3 w-full rounded-ctl border border-hair bg-base px-3 py-1.5 text-[13px] placeholder:text-dim"
-      />
-      <div className="mt-2 flex gap-2">
-        {(
-          [
-            ['confirmed', 'Confirm'],
-            ['field_visit', 'Field visit'],
-            ['dismissed', 'Dismiss'],
-          ] as const
-        ).map(([s, label]) => (
-          <button
-            key={s}
-            onClick={() => onStatus(s)}
-            className="rounded-ctl border border-hair px-3 py-1 text-[13px] hover:bg-s2"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {allowed.length > 0 && (
+        <>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note (optional)"
+            className="mt-3 w-full rounded-ctl border border-hair bg-base px-3 py-1.5 text-[13px] placeholder:text-dim"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {allowed
+              .filter((s) => s !== 'dismissed')
+              .map((s) => (
+                <button
+                  key={s}
+                  disabled={busy}
+                  onClick={() => onStatus(s)}
+                  className="rounded-ctl border border-hair px-3 py-1 text-[13px] hover:bg-s2 disabled:opacity-50"
+                >
+                  {STATUS_LABEL[s]}
+                </button>
+              ))}
+            {canDismiss && (
+              <span className="flex items-center gap-1">
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value as ReasonCode)}
+                  className="rounded-ctl border border-hair bg-base px-2 py-1 text-[13px]"
+                  aria-label="Reason for dismissing"
+                >
+                  {(Object.keys(REASON_LABELS) as ReasonCode[]).map((r) => (
+                    <option key={r} value={r}>
+                      {REASON_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={busy || dismissBlocked}
+                  onClick={() => onStatus('dismissed', reason)}
+                  className="rounded-ctl border border-hair px-3 py-1 text-[13px] hover:bg-s2 disabled:opacity-50"
+                  title={dismissBlocked ? 'Add a note when the reason is “Other”' : undefined}
+                >
+                  Dismiss
+                </button>
+              </span>
+            )}
+          </div>
+        </>
+      )}
       {error && <p className="mt-2 text-[12px] text-high">{error.message}</p>}
+      {detail && detail.history.length > 0 && (
+        <ol className="mt-3 border-t border-hair pt-2 font-mono text-[11px] text-soft">
+          {detail.history.map((h) => (
+            <li key={h.changed_at}>
+              {h.changed_at.slice(0, 16).replace('T', ' ')} · {h.from_status ?? '—'} → {h.to_status}
+              {h.changed_by_name ? ` · ${h.changed_by_name}` : ''}
+              {h.reason_code ? ` · ${h.reason_code}` : ''}
+              {h.note ? ` · ${h.note}` : ''}
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
 }

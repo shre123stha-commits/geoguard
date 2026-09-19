@@ -1,10 +1,11 @@
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2 import Geography
-from sqlalchemy import Select, cast, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import Select, case, cast, func, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.db.enums import ConfidenceClass, DetectionStatus, EvidenceKind
 from app.db.models import Detection, DetectionStatusHistory, EvidenceFile, Parcel, Scan
@@ -61,8 +62,17 @@ class DetectionRepository:
         status: DetectionStatus | None = None,
         bbox: tuple[float, float, float, float] | None = None,
         since: datetime | None = None,
+        until: datetime | None = None,
     ) -> Select[tuple[Detection]]:
-        q = select(Detection).order_by(Detection.created_at.desc(), Detection.score.desc())
+        # Default sort per appflow Flow D: confidence desc, area desc (newest scan first).
+        conf_rank = case(
+            (Detection.confidence == ConfidenceClass.high, 0),
+            (Detection.confidence == ConfidenceClass.medium, 1),
+            else_=2,
+        )
+        q = select(Detection).order_by(
+            Detection.created_at.desc(), conf_rank, Detection.area_m2.desc(), Detection.id
+        )
         if scan_id:
             q = q.where(Detection.scan_id == scan_id)
         if parcel_id:
@@ -73,6 +83,8 @@ class DetectionRepository:
             q = q.where(Detection.status == status)
         if since:
             q = q.where(Detection.created_at >= since)
+        if until:
+            q = q.where(Detection.created_at < until)
         if bbox:
             env = func.ST_MakeEnvelope(*bbox, 4326)
             q = q.where(Detection.geom.op("&&")(env))
@@ -80,6 +92,35 @@ class DetectionRepository:
 
     def list_all(self, limit: int = 500, offset: int = 0, **filters: Any) -> list[Detection]:
         return list(self.db.scalars(self.query(**filters).limit(limit).offset(offset)))
+
+    def list_page(self, offset: int, limit: int, **filters: Any) -> tuple[list[Detection], int]:
+        q = self.query(**filters).options(selectinload(Detection.parcel))
+        rows = list(self.db.scalars(q.offset(offset).limit(limit)))
+        return rows, self.count(**filters)
+
+    def iter_all(self, batch: int = 500, **filters: Any) -> Iterator[Detection]:
+        """Stream the filtered list for exports without loading everything at once."""
+        q = self.query(**filters).options(selectinload(Detection.parcel))
+        offset = 0
+        while True:
+            rows = list(self.db.scalars(q.offset(offset).limit(batch)))
+            if not rows:
+                return
+            yield from rows
+            offset += batch
+
+    def get_full(self, detection_id: uuid.UUID) -> Detection | None:
+        q = (
+            select(Detection)
+            .where(Detection.id == detection_id)
+            .options(
+                selectinload(Detection.parcel),
+                selectinload(Detection.scan),
+                selectinload(Detection.history),
+                selectinload(Detection.evidence),
+            )
+        )
+        return self.db.scalar(q)
 
     def count(self, **filters: Any) -> int:
         sub = self.query(**filters).order_by(None).subquery()
