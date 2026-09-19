@@ -78,6 +78,11 @@ npm install
 npm run dev        # http://localhost:5173 (proxies /api to the backend)
 ```
 
+Open http://localhost:5173 and sign in with `FIRST_ADMIN_EMAIL` / `FIRST_ADMIN_PASSWORD` from
+`backend\.env` (created by `scripts\seed.py`). The first sign-in asks you to choose a new
+password. Admins create further accounts through `POST /api/v1/users` (UI arrives in Phase 6);
+five failed logins pause that email/IP for five minutes.
+
 ### 5. Quality checks
 
 ```powershell

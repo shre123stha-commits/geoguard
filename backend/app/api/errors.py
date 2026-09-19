@@ -3,6 +3,7 @@
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -27,11 +28,19 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _STATUS_CODES.get(exc.status_code, "error")
-        return JSONResponse(status_code=exc.status_code, content=error_body(code, str(exc.detail)))
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_body(code, str(exc.detail)),
+            headers=dict(exc.headers or {}),
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exc(_: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
-            content=error_body("validation_error", "Request validation failed", exc.errors()),
+            content=error_body(
+                "validation_error",
+                "Request validation failed",
+                jsonable_encoder(exc.errors(), exclude={"ctx", "url"}),
+            ),
         )

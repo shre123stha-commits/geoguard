@@ -21,6 +21,13 @@ class UserRepository:
     def list_all(self) -> list[User]:
         return list(self.db.scalars(select(User).order_by(User.created_at)))
 
+    def list_page(self, offset: int, limit: int) -> tuple[list[User], int]:
+        total = int(self.db.scalar(select(func.count()).select_from(User)) or 0)
+        rows = self.db.scalars(
+            select(User).order_by(User.created_at, User.id).offset(offset).limit(limit)
+        )
+        return list(rows), total
+
     def count_active_admins(self) -> int:
         return int(
             self.db.scalar(

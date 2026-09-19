@@ -14,17 +14,41 @@ export class ApiRequestError extends Error {
 }
 
 export const API_BASE = '/api/v1';
+const TOKEN_KEY = 'geoguard.token';
+
+/** Access token lives in sessionStorage: cleared when the tab closes (techspec §8). */
+export const tokenStore = {
+  get: (): string | null => sessionStorage.getItem(TOKEN_KEY),
+  set: (t: string): void => sessionStorage.setItem(TOKEN_KEY, t),
+  clear: (): void => sessionStorage.removeItem(TOKEN_KEY),
+};
+
+const listeners = new Set<() => void>();
+/** Fired on 401 so the auth context can drop the session. */
+export function onUnauthorized(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = tokenStore.get();
   const res = await fetch(path.startsWith('/') ? path : `${API_BASE}/${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
   });
   if (!res.ok) {
     const body = await res
       .json()
       .then((b: unknown) => b as ApiError)
       .catch(() => null);
+    if (res.status === 401 && token) {
+      tokenStore.clear();
+      listeners.forEach((cb) => cb());
+    }
     throw new ApiRequestError(res.status, body);
   }
   return (await res.json()) as T;

@@ -1,4 +1,4 @@
-"""Prototype API slice: parcels/detections served from files, scan endpoint guarded."""
+"""File-backed detections/scans slice (parcels moved to the DB-backed router in Phase 3)."""
 
 import json
 from pathlib import Path
@@ -59,10 +59,8 @@ def _client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(settings))
 
 
-def test_parcels_and_detections_served(tmp_path: Path) -> None:
+def test_detections_served(tmp_path: Path) -> None:
     with _client(tmp_path) as c:
-        r = c.get("/api/v1/parcels")
-        assert r.status_code == 200 and r.json()["features"][0]["properties"]["name"] == "P1"
         r = c.get("/api/v1/detections")
         body = r.json()
         assert len(body["features"]) == 1

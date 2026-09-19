@@ -22,6 +22,28 @@ class ParcelRepository:
     def list_all(self) -> list[Parcel]:
         return list(self.db.scalars(select(Parcel).order_by(Parcel.name)))
 
+    def list_page(
+        self, offset: int, limit: int, category: str | None = None, q: str | None = None
+    ) -> tuple[list[Parcel], int]:
+        stmt = select(Parcel)
+        if category:
+            stmt = stmt.where(Parcel.category == category)
+        if q:
+            stmt = stmt.where(Parcel.name.ilike(f"%{q}%"))
+        total = int(self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
+        rows = self.db.scalars(stmt.order_by(Parcel.name, Parcel.id).offset(offset).limit(limit))
+        return list(rows), total
+
+    def geodesic_area(self, geometry: dict[str, Any]) -> float:
+        wkb = to_db(geojson_to_multipolygon(geometry))
+        return float(self.db.scalar(select(func.ST_Area(func.ST_GeogFromWKB(wkb)))) or 0.0)
+
+    def set_geometry(self, parcel: Parcel, geometry: dict[str, Any]) -> Parcel:
+        parcel.geom = to_db(geojson_to_multipolygon(geometry))
+        parcel.area_m2 = self.geodesic_area(geometry)
+        self.db.flush()
+        return parcel
+
     def create(
         self,
         name: str,
