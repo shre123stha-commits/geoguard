@@ -94,7 +94,9 @@ def api(db: Session, tmp_path: Path) -> Iterator[tuple[TestClient, Session]]:
     from app.main import create_app
 
     settings = Settings(
-        jwt_secret=SecretStr("test-secret-not-for-prod"), data_dir=tmp_path / "data"
+        jwt_secret=SecretStr("test-secret-not-for-prod"),
+        data_dir=tmp_path / "data",
+        worker_enabled=False,
     )
     app = create_app(settings)
     app.dependency_overrides[get_db] = lambda: db

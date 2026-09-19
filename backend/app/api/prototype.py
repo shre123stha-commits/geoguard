@@ -1,11 +1,11 @@
-"""File-backed detections/scans (Phase 1 slice, tracker D42). Same paths as techspec §6 so the
-frontend does not change when the PostGIS-backed routers replace them (Phases 4–5).
-`/parcels` moved to `app/api/parcels.py` in Phase 3."""
+"""File-backed detections (Phase 1 slice, tracker D42). Same paths as techspec §6 so the
+frontend does not change when the PostGIS-backed router replaces it (Phase 5).
+`/parcels` moved to `app/api/parcels.py` (Phase 3), `/scans` to `app/api/scans.py` (Phase 4)."""
 
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.services.prototype import DISCLAIMER, PrototypeStore
 
@@ -15,12 +15,6 @@ router = APIRouter(tags=["prototype"])
 def _store(request: Request) -> PrototypeStore:
     store: PrototypeStore = request.app.state.prototype_store
     return store
-
-
-class ScanCreate(BaseModel):
-    t_bui: float = Field(default=0.15, ge=0.0, le=1.0)
-    t_sar_db: float = Field(default=2.5, ge=0.0, le=10.0)
-    overlap: float = Field(default=0.3, ge=0.0, le=1.0)
 
 
 class DetectionStatus(BaseModel):
@@ -57,20 +51,3 @@ def set_status(request: Request, detection_id: int, body: DetectionStatus) -> di
             d["status_note"] = body.note
             return d
     raise HTTPException(status_code=404, detail="Detection not found")
-
-
-@router.get("/scans")
-def list_scans(request: Request) -> list[dict[str, Any]]:
-    return _store(request).scans
-
-
-@router.post("/scans", status_code=201)
-def create_scan(request: Request, body: ScanCreate | None = None) -> dict[str, Any]:
-    store = _store(request)
-    if not store.composites_available():
-        raise HTTPException(
-            status_code=409,
-            detail="No composites in data/composites. Run scripts/build_composites.py first.",
-        )
-    body = body or ScanCreate()
-    return store.run_scan(body.t_bui, body.t_sar_db, body.overlap)

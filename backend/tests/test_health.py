@@ -6,13 +6,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine
 
 from app.api import health as health_module
+from app.core.config import Settings
 from app.main import create_app
 from app.services.health import HealthReport, check_health
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(Settings(worker_enabled=False))) as c:
         yield c
 
 
