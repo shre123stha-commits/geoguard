@@ -89,11 +89,13 @@ def test_reversed_range_rejected() -> None:
         src.search_radar(BBOX, (RANGE[1], RANGE[0]))
 
 
-def test_read_bands_not_implemented_yet() -> None:
+def test_read_bands_missing_asset_raises() -> None:
     src, _ = _source_with([])
     it = _item("x", datetime(2023, 1, 1, tzinfo=UTC), {}, [])
-    with pytest.raises(NotImplementedError):
-        src.read_bands(_s2_scene(it), ["B04"], BBOX, "EPSG:32644", 10)
+    with pytest.raises(ImageryError, match="no asset"):
+        src.read_bands(
+            _s2_scene(it), ["B04"], (500_000, 1_430_000, 500_100, 1_430_100), "EPSG:32644", 10
+        )
 
 
 def test_reprocessed_duplicates_collapse_to_newest() -> None:
