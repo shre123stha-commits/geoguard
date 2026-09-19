@@ -4,7 +4,7 @@
 > Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Current phase:** Phase 0 — Foundation (code complete; 0.3 and 0.7 need manual verification on the Windows machine)
-**Current task:** 1.2 (`ImagerySource` + first STAC source; scene search)
+**Current task:** 1.3 (windowed band reads + cache)
 **Last updated:** 2026-09-19
 **Last updated by:** Arena Agent
 
@@ -40,7 +40,7 @@
 
 ### Phase 1 — Detection Prototype
 - [x] 1.1 Test area, parcel boundaries (OSM export or hand-traced), date windows — Pallikaranai marsh edge; 3 hand-traced parcels (1 change, 2 controls) in `data/samples/parcels.geojson`; windows 2020-01-15→03-31 vs 2023-01-15→03-31 in `windows.json`; validated (all valid, no overlaps, 19.8/4.7/3.4 ha, AOI 1.4×1.1 km)
-- [ ] 1.2 `ImagerySource` + first concrete source; scene search
+- [x] 1.2 `ImagerySource` + first concrete source; scene search — Planetary Computer, anonymous; baseline 15 S2 / 6 S1, current 11 S2 / 6 S1 (all S1 descending rel-orbit 92)
 - [ ] 1.3 Windowed band reads + cache
 - [ ] 1.4 Cloud mask + composites
 - [ ] 1.5 Indices + unit tests
@@ -122,6 +122,10 @@ Record every meaningful decision here (append only).
 | D14 | 2026-09-19 | Standard error format `{error:{code,message,details}}` is installed globally from task 0.5 (not deferred to 3.3) | Every response, including 404/422, should be consistent from day one | Add in 3.3 |
 | D15 | 2026-09-19 | Vite dev server proxies `/api`, `/files`, `/health` to `localhost:8000`; browser code uses relative URLs only | Avoids CORS in dev and keeps the API host out of frontend code | Absolute API URL via env var |
 | D17 | 2026-09-19 | Test area = Pallikaranai marsh edge, Chennai; parcels hand-traced at geojson.io; ≥1 change parcel + 2 control parcels (marsh interior, stable built-up); same dry-season windows (Jan–Mar) | Owner can verify locally; strong known construction pressure; dry season minimises cloud and seasonal-water false positives | Adyar/Cooum riverbed; unknown government plot |
+| D18 | 2026-09-19 | Owner's Windows env verified: Python venv, `pip install -e ".[dev,geo]"` succeeded with wheels — rasterio 1.5.1, shapely 2.1.2, pyproj 3.8.0, numpy 2.5.3, pystac-client 0.9.0, planetary-computer 1.0.0, geoalchemy2 0.20.0, alembic 1.20.0 | Record real versions (techspec header asks for it) | conda |
+| D19 | 2026-09-19 | mypy `python_version` set to 3.12 (project still `requires-python>=3.11`) | numpy ≥ 2.5 type stubs use PEP 695 `type` statements, which mypy rejects under a 3.11 target | Pin older numpy |
+| D20 | 2026-09-19 | S2 search collapses reprocessed duplicates: one scene per (MGRS tile, acquisition time), keeping the newest processing baseline | PC catalog holds both original and 2024 Collection-1 reprocessed items for the same overpass; duplicates would double-weight scenes in the median composite | Keep both; prefer oldest |
+| D21 | 2026-09-19 | S1: only the descending relative-orbit 92 track covers the AOI in both windows, so orbit matching (techspec §5.2 step 2) is automatically satisfied here; the source still records orbit fields for other AOIs | Observed in search results | — |
 | D16 | 2026-09-19 | Primary imagery: Microsoft Planetary Computer STAC (no account needed since June 2024, incl. Sentinel-1 RTC). Fallback: CDSE STAC v1 `https://stac.dataspace.copernicus.eu/v1` (free account for downloads) | Audit in §6 | CDSE as primary (needs token from day one) |
 
 ## 4. Open Questions
@@ -189,14 +193,14 @@ Also record precision separately for each confidence class (`high`, `medium`, `l
 | 2026-09-19 | 0.6 | Vite + React 18 + TS strict + Tailwind (tokens from 04-design §3), react-router, TanStack Query, MapLibre/terra-draw/fontsource deps installed, ESLint flat config + Prettier, Vitest + RTL; `HealthPage` with loading/error/data states; 2 Vitest tests | Arena Agent |
 | 2026-09-19 | 0.7 | `.pre-commit-config.yaml` (ruff, prettier, private-key & large-file checks), `.github/workflows/ci.yml` (backend + frontend jobs) | Arena Agent |
 | 2026-09-19 | 0.8 | Free-Services Audit table §6 filled with live checks | Arena Agent |
+| 2026-09-19 | 1.2 | `app/pipeline/sources/base.py` (`SceneRef`, `ImagerySource` Protocol, `ImageryError`), `app/pipeline/sources/planetary_computer.py` (`PlanetaryComputerSource`, anonymous signing, dedupe), `app/pipeline/aoi.py` (union + 100 m buffer in UTM, 100 km² guard), `scripts/search_scenes.py`; 12 new tests with mocked STAC (no network) | Arena Agent |
 | 2026-09-19 | 1.1 | Owner traced 3 parcels at geojson.io from Esri Wayback comparison; validated with shapely/pyproj; `data/samples/{parcels.geojson,windows.json,README.md}` (gitignored — owner keeps copy in OneDrive workspace) | Shrestha + Arena Agent |
 
 ## 10. Session Handoff Notes
 
 > Write 3–5 lines at the end of each working session: what was done, what is half-done, what to do next, gotchas. The next assistant reads this first.
 
-- **Done (2026-09-19, Arena Agent):** Phase 0 code for 0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8. Verified in a Linux sandbox (Python 3.13, Node 20): `ruff check` / `ruff format --check` / `mypy` clean, `pytest` 7 passed; `eslint` / `tsc -b` clean, `vitest` 2 passed, `vite build` OK; uvicorn boots, `GET /health` → 200 `degraded` (no DB in sandbox); Vite proxy to `/api/v1/health` works.
-- **Half-done:** 0.3 needs the owner's Windows PostGIS (`.\scripts\check-postgis.ps1`), then confirm `/health` returns `database: ok` and a PostGIS version. 0.7 needs the first push so Actions runs. Repo not pushed yet (Q6).
-- **Next:** 1.2 — `ImagerySource` Protocol + `PlanetaryComputerSource` (pystac-client, anonymous signing), search S2 L2A (cloud ≤ 30) and S1 RTC for the AOI in both windows, print scene lists. Owner must first run `pip install -e ".[geo]"` on Windows and report any wheel errors. Note: West-1 is 20 ha — `expected_change=yes` means change *somewhere inside*; label exact spots at 1.10. `data/` is gitignored: keep `data/samples/` copies in sync between owner PC and sandbox.
-- **Gotchas:** Docs say Python 3.11+ — sandbox used 3.13; verify `pip install -e ".[geo]"` on the owner's Python version (rasterio wheels for 3.13 on Windows may lag; 3.11/3.12 are safest). Vite's template now ships React 19 — we pinned 18 (D11). `vite.config.ts` has `allowedHosts: ['.e2b.app', 'localhost']` for sandbox previews; harmless but can be removed.
-- **Resume commands (PowerShell):** `cd geoguard-eo; .\.venv\Scripts\Activate.ps1; cd backend; pytest; cd ..\frontend; npm test`
+- **Done (2026-09-19, Arena Agent):** Phase 0 (except manual 0.3/0.7 verification), 1.1, 1.2. Sandbox: ruff/mypy clean, pytest **19 passed**; real search against Planetary Computer for the Pallikaranai AOI (1.50 km², EPSG:32644) works anonymously: baseline 2020-01-15→03-31 = 15 S2 (cloud 0.1–24%) + 6 S1; current 2023-01-15→03-31 = 11 S2 after dedupe (1.7–27%) + 6 S1; all S1 descending rel-orbit 92, tile 44PMV.
+- **Half-done:** 0.3 PostGIS + 0.7 CI still need the owner's machine / first push. Owner should run `python scripts\search_scenes.py ..\data\samples\parcels.geojson ..\data\samples\windows.json` on Windows to confirm the same counts.
+- **Next:** 1.3 — `read_bands` in `PlanetaryComputerSource` via rasterio windowed reads of signed COG hrefs (S2 B04/B08/B11/SCL → 10 m UTM grid, B11 20→10 m nearest/bilinear, SCL nearest; S1 vv/vh linear power), file cache under `data/cache/` keyed by scene id + bbox + band. Write a `LocalFolderSource` stub only if needed for tests.
+- **Gotchas:** `.venv` and `data/` are not persisted in the sandbox snapshot — recreate venv each session (`python3 -m venv .venv && pip install -e ".[dev,geo]"`); `data/samples/*` is checked into the sandbox working tree only via the owner's copy — if missing, re-paste. Script inserts `backend/` on `sys.path` so it runs without `pip install -e .`. Repo on owner PC: `%USERPROFILE%\OneDrive\Desktop\workspace-01a0b883-c2f0-73bd-94c6-a1c108ea92da\geoguard-eo`.
