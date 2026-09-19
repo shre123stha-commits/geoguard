@@ -61,8 +61,13 @@ class AlertSettings(BaseModel):
 def load_settings(db: Session, env: Settings) -> AlertSettings:
     row = db.get(AppSetting, SETTINGS_KEY)
     if row is None:
-        # first run: mirror the environment's provider, disabled until an admin turns it on
-        return AlertSettings(provider=env.alert_provider)
+        # First run: provider + recipients from the environment; on as soon as the provider's
+        # credentials are present (e.g. SMTP_* for e-mail), otherwise off with a hint in the UI.
+        return AlertSettings(
+            provider=env.alert_provider,
+            recipients=env.alert_recipients,
+            enabled=provider_ready(env.alert_provider, env) is None,
+        )
     return AlertSettings.model_validate(row.value)
 
 

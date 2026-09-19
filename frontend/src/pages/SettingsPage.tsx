@@ -174,9 +174,9 @@ function AlertsCard() {
             value={form.provider}
             onChange={(e) => setForm({ ...form, provider: e.target.value as AlertProvider })}
           >
-            {(Object.keys(PROVIDER_LABEL) as AlertProvider[]).map((p) => (
+            {(Object.entries(PROVIDER_LABEL) as [AlertProvider, string][]).map(([p, label]) => (
               <option key={p} value={p}>
-                {PROVIDER_LABEL[p]}
+                {label}
                 {q.data.available_providers.includes(p) ? '' : ' — not configured on the server'}
               </option>
             ))}
@@ -184,9 +184,11 @@ function AlertsCard() {
         </Field>
         {!providerOk && (
           <p className="rounded-ctl border border-hair bg-s1 px-3 py-2 text-[13px] text-soft">
-            {form.provider === 'telegram'
-              ? 'Set TELEGRAM_BOT_TOKEN in the server’s .env (create a bot with @BotFather), restart, then come back here.'
-              : 'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD and SMTP_FROM in the server’s .env, restart, then come back here.'}
+            E-mail is not configured on the server yet. In <code>backend\.env</code> set{' '}
+            <code>SMTP_HOST=smtp.gmail.com</code>, <code>SMTP_PORT=587</code>,{' '}
+            <code>SMTP_USER</code> and <code>SMTP_FROM</code> to your Gmail address and{' '}
+            <code>SMTP_PASSWORD</code> to a Google App Password, restart the server, then reload
+            this page.
           </p>
         )}
         <Field label="Recipients" hint={RECIPIENT_HINT[form.provider]}>

@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     stac_api_url: str = ""
     cloud_cover_max: int = Field(default=30, ge=0, le=100)
 
-    alert_provider: Literal["console", "telegram", "email"] = "console"
+    alert_provider: Literal["console", "telegram", "email"] = "email"
+    # Preset recipients for the first run (comma-separated); editable later in Settings.
+    alert_recipients: Annotated[list[str], NoDecode] = ["shresthaagarwal98@gmail.com"]
     telegram_bot_token: SecretStr = SecretStr("")
     smtp_host: str = ""
     smtp_port: int = 587
@@ -51,7 +53,7 @@ class Settings(BaseSettings):
     # NoDecode: value in .env is a plain comma-separated string, not JSON
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "alert_recipients", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):
