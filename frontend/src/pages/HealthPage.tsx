@@ -7,7 +7,7 @@ export function HealthPage() {
 
   return (
     <main className="mx-auto max-w-[1200px] p-4 md:p-8">
-      <p className="rise font-mono text-[11px] uppercase tracking-[0.12em] text-soft">Phase 0</p>
+      <p className="rise font-mono text-[11px] uppercase tracking-[0.12em] text-soft">System</p>
       <h1 className="rise font-display text-[clamp(36px,4.5vw,64px)] font-medium leading-[1.02] tracking-[-0.03em]">
         GeoGuard<sup className="ml-1 text-[0.4em] align-super">EO</sup>
       </h1>
