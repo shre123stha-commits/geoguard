@@ -34,8 +34,11 @@ _NEAREST_BANDS = {"SCL"}
 _GDAL_ENV = {
     "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
     "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff",
-    "GDAL_HTTP_MAX_RETRY": "3",
+    "GDAL_HTTP_MAX_RETRY": "2",
     "GDAL_HTTP_RETRY_DELAY": "2",
+    # Fail fast when the storage host is unreachable (some networks block Azure Blob Storage).
+    "GDAL_HTTP_CONNECTTIMEOUT": "10",
+    "GDAL_HTTP_TIMEOUT": "60",
 }
 
 
@@ -229,6 +232,12 @@ def _read_one(href: str, band: str, grid: TargetGrid) -> np.ndarray:
                 resampling=resampling,
             )
     except RasterioIOError as exc:
+        host = href.split("/")[2] if "//" in href else href
+        if "Could not connect" in str(exc) or "Connection timed out" in str(exc):
+            raise ImageryError(
+                f"Cannot reach imagery storage host {host}. Check that your network allows "
+                "HTTPS access to it (some networks block Azure Blob Storage)."
+            ) from exc
         raise ImageryError(f"could not read {band} for {href.split('?')[0]}: {exc}") from exc
     if band == "SCL":
         dst[dst == 0] = np.nan  # SCL 0 = no data
