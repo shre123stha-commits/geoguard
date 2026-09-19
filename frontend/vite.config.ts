@@ -6,6 +6,9 @@ import { defineConfig } from 'vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // maplibre-gl spawns a web worker from its own module URL; leaving it out of dep
+  // prebundling keeps that worker resolvable in dev.
+  optimizeDeps: { exclude: ['maplibre-gl'] },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     host: true,
