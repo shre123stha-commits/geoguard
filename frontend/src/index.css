@@ -1,0 +1,61 @@
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background: var(--base);
+    color: var(--text);
+    font-family: Inter, system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  /* No italic anywhere (04-design.md §4). */
+  em,
+  i {
+    font-style: normal;
+    font-weight: 500;
+  }
+  :focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 3px;
+  }
+}
+
+@keyframes blurFadeUp {
+  from {
+    opacity: 0;
+    filter: blur(18px);
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: blurFadeUp 1s var(--ease-out) forwards;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+    opacity: 1;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
