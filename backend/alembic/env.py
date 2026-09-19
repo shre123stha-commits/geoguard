@@ -13,6 +13,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 url = get_settings().database_url
+# `alembic -x schema=geoguard_test upgrade head` runs the migrations inside that schema
+# (used by the test-suite on single-database hosts such as Supabase). Default: public.
+SCHEMA = context.get_x_argument(as_dictionary=True).get("schema") or None
 config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 target_metadata = Base.metadata
 
@@ -42,8 +45,16 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        if SCHEMA:
+            connection.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"')
+            # PostGIS lives in public; keep it on the path so geometry types resolve.
+            connection.exec_driver_sql(f'SET search_path TO "{SCHEMA}", public')
+            connection.commit()
         context.configure(
-            connection=connection, target_metadata=target_metadata, include_object=include_object
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+            version_table_schema=SCHEMA,
         )
         with context.begin_transaction():
             context.run_migrations()

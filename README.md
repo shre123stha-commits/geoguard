@@ -29,17 +29,30 @@ React 18 + Vite + TypeScript + Tailwind · MapLibre GL + terra-draw · TanStack 
 ### 1. Prerequisites (all free)
 
 - Python 3.11 or newer, Node.js 20 LTS, Git
-- PostgreSQL 15 with PostGIS 3 (native install via the EDB installer + Stack Builder → PostGIS)
+- A **Supabase** project (free tier; managed PostgreSQL with PostGIS) — or a native PostgreSQL 15 + PostGIS 3 install if you prefer on-prem
 
-### 2. Database
+### 2. Database (Supabase, default)
+
+1. Create a free project at supabase.com (region: Mumbai `ap-south-1`); note the database password.
+2. Dashboard → **Connect** (top bar) → **Session pooler** → copy the URI.
+3. In `backend\.env` set **both** `DATABASE_URL` and `TEST_DATABASE_URL` to that URI with two edits:
+   `postgresql://` → `postgresql+psycopg://` and append `?sslmode=require`.
+   Keep `TEST_DATABASE_SCHEMA=geoguard_test` (tests run in their own schema of the same database).
+4. From the repo root with the venv active: `.\scripts\db-migrate.ps1` (migrations enable PostGIS
+   and create the first admin from `FIRST_ADMIN_EMAIL` / `FIRST_ADMIN_PASSWORD`).
+
+Free-tier notes: the project pauses after 7 days without traffic (un-pause in the dashboard); use
+the Session pooler string (port 5432) — the direct string is IPv6-only and the transaction pooler
+(6543) does not support Alembic.
+
+<details><summary>Alternative: native PostgreSQL 15 + PostGIS</summary>
 
 ```powershell
 .\scripts\check-postgis.ps1 -PgUser postgres
-# or manually in psql:
 #   CREATE DATABASE geoguard_db;  CREATE DATABASE geoguard_test;
-#   \c geoguard_db   CREATE EXTENSION postgis; CREATE EXTENSION pgcrypto;
-#   SELECT PostGIS_Full_Version();
 ```
+Then use the `localhost` URLs commented in `.env.example`.
+</details>
 
 ### 3. Backend
 
@@ -47,8 +60,8 @@ React 18 + Vite + TypeScript + Tailwind · MapLibre GL + terra-draw · TanStack 
 cd backend
 python -m venv ..\.venv
 ..\.venv\Scripts\Activate.ps1      # if blocked: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-pip install -e ".[dev]"
-Copy-Item .env.example .env        # then edit DATABASE_URL and JWT_SECRET
+pip install -e ".[dev,geo]"
+Copy-Item .env.example .env        # then edit DATABASE_URL, TEST_DATABASE_URL, JWT_SECRET, FIRST_ADMIN_*
 uvicorn app.main:app --reload --port 8000
 # http://localhost:8000/health  → {"status":"ok","database":"ok","postgis":"3.x", ...}
 # http://localhost:8000/docs

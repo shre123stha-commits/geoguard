@@ -19,6 +19,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:CHANGE_ME@localhost:5432/geoguard_db"
     test_database_url: str = "postgresql+psycopg://postgres:CHANGE_ME@localhost:5432/geoguard_test"
+    # Optional schema for the *test* suite when TEST_DATABASE_URL is the same database as
+    # DATABASE_URL (Supabase free tier: one database per project). Ignored when empty.
+    test_database_schema: str = "geoguard_test"
     jwt_secret: SecretStr = SecretStr("CHANGE_ME")
     jwt_expire_minutes: int = Field(default=480, ge=5, le=24 * 60)
     data_dir: Path = Path("./data")

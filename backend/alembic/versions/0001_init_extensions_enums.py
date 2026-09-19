@@ -24,8 +24,8 @@ ENUMS = {
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
-    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+    op.execute("CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public")
     for name, values in ENUMS.items():
         vals = ", ".join(f"'{v}'" for v in values)
         op.execute(f"CREATE TYPE {name} AS ENUM ({vals})")
