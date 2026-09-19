@@ -13,6 +13,8 @@ import {
   type DetectionProps,
   type DetectionStatus,
 } from '@/api/prototype';
+import { useAuth } from '@/app/useAuth';
+import { Link } from 'react-router-dom';
 
 /** Phase-1 vertical slice: parcels + detections on a map with a review panel (tracker D42). */
 
@@ -79,6 +81,7 @@ function bboxOf(fc: {
 
 export function ReviewPage() {
   const qc = useQueryClient();
+  const { user, logout } = useAuth();
   const parcels = useQuery({ queryKey: ['parcels'], queryFn: getParcels });
   const detections = useQuery({ queryKey: ['detections'], queryFn: getDetections });
   const scans = useQuery({ queryKey: ['scans'], queryFn: getScans });
@@ -248,12 +251,35 @@ export function ReviewPage() {
     <div className="grid h-dvh grid-rows-[minmax(0,45dvh)_1fr] sm:grid-rows-1 sm:grid-cols-[380px_1fr]">
       <aside className="flex min-h-0 flex-col overflow-hidden border-b border-hair bg-base sm:border-b-0 sm:border-r">
         <header className="border-b border-hair px-5 py-4">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">
-            Detections · Review
-          </p>
-          <h1 className="font-display text-[28px] font-medium leading-none tracking-[-0.03em]">
-            GeoGuard<sup className="ml-1 text-[0.4em] align-super">EO</sup>
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">
+                Detections · Review
+              </p>
+              <h1 className="font-display text-[28px] font-medium leading-none tracking-[-0.03em]">
+                GeoGuard<sup className="ml-1 text-[0.4em] align-super">EO</sup>
+              </h1>
+            </div>
+            {user && (
+              <div className="text-right">
+                <p className="max-w-[160px] truncate text-[12px] text-soft" title={user.email}>
+                  {user.full_name}
+                  <span className="ml-1.5 rounded-full border border-hair px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.08em] text-dim">
+                    {user.role}
+                  </span>
+                </p>
+                <p className="mt-1 font-mono text-[11px] text-dim">
+                  <Link to="/change-password" className="hover:text-cream">
+                    password
+                  </Link>
+                  <span className="mx-1">·</span>
+                  <button type="button" onClick={logout} className="hover:text-cream">
+                    sign out
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
           <div className="mt-3 flex items-center gap-2">
             <button
               className="rounded-ctl border border-hair-strong bg-s2 px-3 py-1.5 text-[13px] font-medium hover:bg-s3 disabled:opacity-50"

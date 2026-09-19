@@ -1,5 +1,6 @@
-"""Prototype endpoints (Phase 1 slice, tracker D42). Same paths as techspec §6 so the frontend
-does not change when PostGIS-backed routers replace this module in Phase 2/3."""
+"""File-backed detections/scans (Phase 1 slice, tracker D42). Same paths as techspec §6 so the
+frontend does not change when the PostGIS-backed routers replace them (Phases 4–5).
+`/parcels` moved to `app/api/parcels.py` in Phase 3."""
 
 from typing import Any, Literal
 
@@ -25,11 +26,6 @@ class ScanCreate(BaseModel):
 class DetectionStatus(BaseModel):
     status: Literal["new", "confirmed", "dismissed", "field_visit"]
     note: str = ""
-
-
-@router.get("/parcels")
-def list_parcels(request: Request) -> dict[str, Any]:
-    return _store(request).parcel_feature_collection()
 
 
 @router.get("/detections")

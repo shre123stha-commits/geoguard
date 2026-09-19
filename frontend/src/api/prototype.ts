@@ -24,16 +24,28 @@ export interface DetectionProps {
   status_note?: string;
 }
 
-export interface FeatureCollection<P> {
+export interface FeatureCollection<P, Id = number> {
   type: 'FeatureCollection';
-  features: { type: 'Feature'; id: number; properties: P; geometry: Geometry }[];
+  features: { type: 'Feature'; id: Id; properties: P; geometry: Geometry }[];
   disclaimer?: string;
 }
 
 export interface ParcelProps {
-  id: number;
+  id: string;
   name: string;
   category: string;
+  notes: string | null;
+  area_m2: number;
+  source: 'upload' | 'drawn';
+  source_ref: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParcelCollection extends FeatureCollection<ParcelProps, string> {
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface Scan {
@@ -46,7 +58,7 @@ export interface Scan {
   error: string | null;
 }
 
-export const getParcels = () => apiFetch<FeatureCollection<ParcelProps>>('parcels');
+export const getParcels = () => apiFetch<ParcelCollection>('parcels?page_size=200');
 export const getDetections = () => apiFetch<FeatureCollection<DetectionProps>>('detections');
 export const getScans = () => apiFetch<Scan[]>('scans');
 export const createScan = (params: Partial<Scan['params']> = {}) =>
