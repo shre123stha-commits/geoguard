@@ -249,7 +249,7 @@ export function ReviewPage() {
       <aside className="flex min-h-0 flex-col overflow-hidden border-b border-hair bg-base sm:border-b-0 sm:border-r">
         <header className="border-b border-hair px-5 py-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">
-            Prototype · Phase 1
+            Detections · Review
           </p>
           <h1 className="font-display text-[28px] font-medium leading-none tracking-[-0.03em]">
             GeoGuard<sup className="ml-1 text-[0.4em] align-super">EO</sup>
