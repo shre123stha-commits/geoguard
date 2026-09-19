@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -28,9 +28,19 @@ def _test_target() -> tuple[str, str | None]:
 @pytest.fixture(scope="session")
 def pg_engine():  # type: ignore[no-untyped-def]
     url, schema = _test_target()
-    connect_args = {"options": f'-csearch_path="{schema}",public'} if schema else {}
     try:
-        engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+        engine = create_engine(url, pool_pre_ping=True)
+        if schema:
+            # Explicit SET on every new DBAPI connection. The psycopg `options=-csearch_path`
+            # startup parameter is silently dropped by some poolers (Supabase/Supavisor), which
+            # would make the tests hit the real `public` tables.
+            @event.listens_for(engine, "connect")
+            def _set_search_path(dbapi_conn, _record):  # type: ignore[no-untyped-def]
+                cur = dbapi_conn.cursor()
+                cur.execute(f'SET search_path TO "{schema}", public')
+                cur.close()
+                dbapi_conn.commit()
+
         with engine.connect() as c:
             c.execute(text("SELECT 1"))
     except Exception as exc:  # noqa: BLE001
@@ -51,6 +61,11 @@ def pg_engine():  # type: ignore[no-untyped-def]
             text=True,
         )
         assert r.returncode == 0, r.stderr
+    if schema:
+        # Fail loudly rather than run isolation-dependent tests against `public`.
+        with engine.connect() as c:
+            current = c.execute(text("SELECT current_schema()")).scalar()
+            assert current == schema, f"search_path not applied: {current!r}"
     yield engine
     engine.dispose()
 
