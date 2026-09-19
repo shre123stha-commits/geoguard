@@ -15,6 +15,7 @@ from app.api.health import router as health_router
 from app.api.parcels import router as parcels_router
 from app.api.scans import router as scans_router
 from app.api.schedules import router as schedules_router
+from app.api.settings import router as settings_router
 from app.api.users import router as users_router
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(schedules_router, prefix=API_PREFIX)
     app.include_router(detections_router, prefix=API_PREFIX)
     app.include_router(files_router, prefix=API_PREFIX)
+    app.include_router(settings_router, prefix=API_PREFIX)
     return app
 
 

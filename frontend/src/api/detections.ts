@@ -86,7 +86,27 @@ export interface DetectionDetail {
   evidence: Evidence[];
   history: HistoryEntry[];
   allowed_transitions: DetectionStatus[];
+  reports: Report[];
+  alerts: Alert[];
   disclaimer: string;
+}
+
+export interface Report {
+  id: string;
+  url: string;
+  generated_at: string;
+  generated_by_name: string | null;
+}
+
+export interface Alert {
+  id: string;
+  provider: string;
+  recipient: string;
+  status: 'pending' | 'sent' | 'failed';
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
 }
 
 export interface ParcelProps {
@@ -137,6 +157,11 @@ export const setDetectionStatus = (
     method: 'PATCH',
     body: JSON.stringify({ status, note: note || null, reason_code: reason_code ?? null }),
   });
+export const createReport = (id: string) =>
+  apiFetch<DetectionDetail>(`detections/${id}/report`, { method: 'POST' });
+export const retryAlert = (id: string, alertId: string) =>
+  apiFetch<DetectionDetail>(`detections/${id}/alerts/${alertId}/retry`, { method: 'POST' });
+
 export const exportUrl = (format: 'geojson' | 'csv', filters: DetectionFilters = {}) =>
   `/api/v1/detections/export?${qs({ ...filters, format })}`;
 

@@ -114,6 +114,26 @@ class ScanSummary(BaseModel):
     created_at: datetime
 
 
+class ReportOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    generated_at: datetime
+    generated_by_name: str | None = None
+
+
+class AlertOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    provider: str
+    recipient: str
+    status: str
+    attempts: int
+    last_error: str | None
+    created_at: datetime
+    sent_at: datetime | None
+
+
 class DetectionDetail(BaseModel):
     type: Literal["Feature"] = "Feature"
     id: uuid.UUID
@@ -124,6 +144,8 @@ class DetectionDetail(BaseModel):
     evidence: list[EvidenceOut]
     history: list[HistoryOut]
     allowed_transitions: list[DetectionStatus]
+    reports: list[ReportOut] = []
+    alerts: list[AlertOut] = []
     disclaimer: str = DISCLAIMER
 
 

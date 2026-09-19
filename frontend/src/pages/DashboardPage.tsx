@@ -6,6 +6,7 @@ import { getDetections } from '@/api/detections';
 import { listParcels } from '@/api/parcels';
 import { listScans, isOpen } from '@/api/scans';
 import { listSchedules } from '@/api/schedules';
+import { getAlertSettings } from '@/api/settings';
 import { useAuth } from '@/app/useAuth';
 import { MapView } from '@/components/MapView';
 import { Card, Chip, LinkButton, PageHeader, Skeleton, StatusChip } from '@/components/ui';
@@ -32,6 +33,11 @@ export function DashboardPage() {
     queryFn: listSchedules,
     enabled: admin,
   });
+  const alertsOn = useQuery({
+    queryKey: ['alert-settings'],
+    queryFn: getAlertSettings,
+    enabled: admin,
+  });
 
   // "new since your last visit" (appflow Flow G/H): compare to a per-browser timestamp.
   const lastVisit = useMemo(() => sessionStorage.getItem(LAST_VISIT_KEY), []);
@@ -55,10 +61,9 @@ export function DashboardPage() {
     {
       n: '04',
       label: 'Set up alerts',
-      done: false,
+      done: alertsOn.data?.enabled ?? false,
       to: '/settings',
       admin: true,
-      soon: true,
     },
   ];
   const bbox = useMemo(
@@ -168,15 +173,15 @@ export function DashboardPage() {
                 return (
                   <li key={s.n}>
                     <Link
-                      to={locked || s.soon ? '#' : s.to}
-                      aria-disabled={locked || s.soon}
-                      className={`flex items-start gap-3 rounded-ctl border border-hair p-3 ${locked || s.soon ? 'cursor-default opacity-60' : 'hover:border-hair-strong'}`}
+                      to={locked ? '#' : s.to}
+                      aria-disabled={locked}
+                      className={`flex items-start gap-3 rounded-ctl border border-hair p-3 ${locked ? 'cursor-default opacity-60' : 'hover:border-hair-strong'}`}
                     >
                       <span className="font-mono text-[12px] text-soft">{s.n}</span>
                       <span className="flex-1">
                         <span className="block text-[14px]">{s.label}</span>
                         <span className="block font-mono text-[11px] uppercase tracking-[0.08em] text-soft">
-                          {s.done ? '✓ done' : s.soon ? 'coming soon' : locked ? 'admin' : 'to do'}
+                          {s.done ? '✓ done' : locked ? 'admin' : 'to do'}
                         </span>
                       </span>
                     </Link>
