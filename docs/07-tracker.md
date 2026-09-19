@@ -41,7 +41,7 @@
 ### Phase 1 — Detection Prototype
 - [x] 1.1 Test area, parcel boundaries (OSM export or hand-traced), date windows — Pallikaranai marsh edge; 3 hand-traced parcels (1 change, 2 controls) in `data/samples/parcels.geojson`; windows 2020-01-15→03-31 vs 2023-01-15→03-31 in `windows.json`; validated (all valid, no overlaps, 19.8/4.7/3.4 ha, AOI 1.4×1.1 km)
 - [x] 1.2 `ImagerySource` + first concrete source; scene search — Planetary Computer, anonymous; baseline 15 S2 / 6 S1, current 11 S2 / 6 S1 (all S1 descending rel-orbit 92)
-- [x] 1.3 Windowed band reads + cache — `read_grid` via rasterio `reproject` onto a 143×108 px 10 m UTM-44N grid; ~2–4 s per scene; npz cache in `data/cache/`; previews in `docs/previews/1.3-first-reads.png`
+- [x] 1.3 Windowed band reads + cache — **verified on owner's Windows over hotspot (13/8/18/9 s per scene, identical stats)**; `read_grid` via rasterio `reproject` onto a 143×108 px 10 m UTM-44N grid; ~2–4 s per scene; npz cache in `data/cache/`; previews in `docs/previews/1.3-first-reads.png`
 - [ ] 1.4 Cloud mask + composites
 - [ ] 1.5 Indices + unit tests
 - [ ] 1.6 Optical change mask
@@ -149,6 +149,7 @@ Record every meaningful decision here (append only).
 |------|---------|------|------------|
 | 2026-09-19 | No PostgreSQL in the build sandbox, so 0.3 could not be executed and `/health` `ok` path is untested against a real PostGIS | 0.3, 0.5 | Owner runs `.\scripts\check-postgis.ps1` on Windows and hits `/health` |
 | 2026-09-19 | CI not yet run (no remote) | 0.7 | Push to GitHub and check Actions |
+| 2026-09-19 | Owner's regular Wi-Fi (172.20.x.x, likely campus/CGNAT) blocks TCP 443 to Azure Blob Storage (`*.blob.core.windows.net`), where Planetary Computer pixels live. DNS OK, STAC API OK, no proxy; `Test-NetConnection` fails on Wi-Fi, succeeds on phone hotspot | 1.3+ | **Workaround:** run scans that need new scenes on the hotspot; cache makes repeats offline. Ask network admin to allow `*.blob.core.windows.net:443`. If it ever fails everywhere: bring forward CDSE / Earth Search fallback source. 1.4 adds `GDAL_HTTP_CONNECTTIMEOUT` + readable "cannot reach imagery storage" error |
 
 ## 6. Free-Services Audit (fill during Task 0.8)
 
