@@ -16,15 +16,21 @@ from app.core.config import Settings
 BACKEND = Path(__file__).resolve().parents[1]
 
 
-def _test_url() -> str:
-    return Settings().test_database_url
+def _test_target() -> tuple[str, str | None]:
+    """(url, schema). Schema mode is used when the test URL is the same database as the app
+    URL (Supabase free tier has one database per project)."""
+    st = Settings()
+    same_db = st.test_database_url.split("?")[0] == st.database_url.split("?")[0]
+    schema = st.test_database_schema or None if same_db else None
+    return st.test_database_url, schema
 
 
 @pytest.fixture(scope="session")
 def pg_engine():  # type: ignore[no-untyped-def]
-    url = _test_url()
+    url, schema = _test_target()
+    connect_args = {"options": f'-csearch_path="{schema}",public'} if schema else {}
     try:
-        engine = create_engine(url, pool_pre_ping=True)
+        engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
         with engine.connect() as c:
             c.execute(text("SELECT 1"))
     except Exception as exc:  # noqa: BLE001
@@ -35,9 +41,10 @@ def pg_engine():  # type: ignore[no-untyped-def]
     import os
 
     env = {**os.environ, "DATABASE_URL": url}
+    x = ["-x", f"schema={schema}"] if schema else []
     for cmd in (["downgrade", "base"], ["upgrade", "head"]):
         r = subprocess.run(
-            [sys.executable, "-m", "alembic", *cmd],
+            [sys.executable, "-m", "alembic", *x, *cmd],
             cwd=BACKEND,
             env=env,
             capture_output=True,
