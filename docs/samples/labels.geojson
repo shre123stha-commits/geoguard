@@ -1,0 +1,466 @@
+{
+ "type": "FeatureCollection",
+ "name": "labels",
+ "properties": {
+  "labelled_by": "owner Wayback screenshots (2020-12-16 vs 2023-06-13), read by Arena Agent 2026-09-19; owner accepted ('whatever you think is best')",
+  "baseline_window": "2020-01-15/2020-03-31",
+  "current_window": "2023-01-15/2023-03-31",
+  "caveat": "2020-12-16 release is 9 months after the baseline window; can only understate precision. Single new houses < 400 m2 in West-1 south were visible but not individually labelled."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 1,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "high",
+    "area_m2": 900.6,
+    "label": "real",
+    "note": "new house + tarp, neighbouring plots filled in",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19544797123048,
+        12.940653022845796
+       ],
+       [
+        80.1954488409332,
+        12.940381767010905
+       ],
+       [
+        80.19517228703963,
+        12.940380913832612
+       ],
+       [
+        80.19517141703803,
+        12.940652169649022
+       ],
+       [
+        80.19544797123048,
+        12.940653022845796
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 2,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "high",
+    "area_m2": 3302.0,
+    "label": "real",
+    "note": "bare scrub -> active construction site, red earth, rubble, new white building",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19563465933503,
+        12.939930242542243
+       ],
+       [
+        80.1956355287857,
+        12.939658986679861
+       ],
+       [
+        80.19554334441357,
+        12.939658702401237
+       ],
+       [
+        80.19554450378315,
+        12.939297027917423
+       ],
+       [
+        80.19545231954605,
+        12.93929674361444
+       ],
+       [
+        80.19545260941615,
+        12.939206324993961
+       ],
+       [
+        80.1951760568176,
+        12.939205471895766
+       ],
+       [
+        80.19508213257194,
+        12.93974769912867
+       ],
+       [
+        80.19535868576158,
+        12.939748552361543
+       ],
+       [
+        80.19535810592636,
+        12.939929389590178
+       ],
+       [
+        80.19563465933503,
+        12.939930242542243
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 3,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "high",
+    "area_m2": 1200.7,
+    "label": "real",
+    "note": "field edge -> new grey-roofed structure + new walled compound",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19738818898718,
+        12.939302707137614
+       ],
+       [
+        80.19738934566526,
+        12.938941032479626
+       ],
+       [
+        80.19711279322709,
+        12.93894018145169
+       ],
+       [
+        80.19711163615055,
+        12.939301856085091
+       ],
+       [
+        80.19738818898718,
+        12.939302707137614
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 4,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "medium",
+    "area_m2": 900.6,
+    "label": "unsure",
+    "note": "scrub -> grass with bare-earth patch; disturbance, no structure",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19508503261217,
+        12.938843513009186
+       ],
+       [
+        80.19508590258131,
+        12.938572257161017
+       ],
+       [
+        80.19480935070644,
+        12.938571403715144
+       ],
+       [
+        80.19480848043847,
+        12.938842659544823
+       ],
+       [
+        80.19508503261217,
+        12.938843513009186
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 5,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "medium",
+    "area_m2": 3101.9,
+    "label": "real",
+    "note": "yard north of square pond -> concrete-paved lot with vehicles (paving, not building)",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19599876196477,
+        12.941378077323671
+       ],
+       [
+        80.1959996311225,
+        12.941106821466995
+       ],
+       [
+        80.19609181603697,
+        12.941107105615604
+       ],
+       [
+        80.1960921057186,
+        12.941016686993393
+       ],
+       [
+        80.19627647548769,
+        12.941017255188783
+       ],
+       [
+        80.19627734432015,
+        12.940745999306062
+       ],
+       [
+        80.19581642041207,
+        12.940744578604068
+       ],
+       [
+        80.19581555108147,
+        12.941015834456012
+       ],
+       [
+        80.19563118133436,
+        12.941015265934888
+       ],
+       [
+        80.19563031178473,
+        12.941286521768832
+       ],
+       [
+        80.1957224967568,
+        12.941286806051838
+       ],
+       [
+        80.19572220693573,
+        12.941377224663938
+       ],
+       [
+        80.19599876196477,
+        12.941378077323671
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 6,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "low",
+    "area_m2": 6003.7,
+    "label": "real",
+    "note": "strip east of lake road: new house with compound wall, sheds, dug ground; box larger than structures",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19471252456312,
+        12.940017816827721
+       ],
+       [
+        80.19471281471647,
+        12.939927398228733
+       ],
+       [
+        80.19480499916841,
+        12.93992768280665
+       ],
+       [
+        80.19480615962699,
+        12.939566008396152
+       ],
+       [
+        80.19434523805337,
+        12.939564585221971
+       ],
+       [
+        80.194344947776,
+        12.939655003815266
+       ],
+       [
+        80.19360747310714,
+        12.939652725026509
+       ],
+       [
+        80.19360631091304,
+        12.940014399327538
+       ],
+       [
+        80.19397504876115,
+        12.940015539015395
+       ],
+       [
+        80.19397475833993,
+        12.940105957597304
+       ],
+       [
+        80.19471252456312,
+        12.940017816827721
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 7,
+    "parcel": "Pallikaranai-West-1",
+    "predicted": "low",
+    "area_m2": 1500.9,
+    "label": "real",
+    "note": "new houses around existing tarp-roofed one; rubble to the west",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19600397661439,
+        12.9397505420983
+       ],
+       [
+        80.19600542500176,
+        12.939298448943802
+       ],
+       [
+        80.19572887226401,
+        12.93929759642568
+       ],
+       [
+        80.19572742337856,
+        12.939749689549396
+       ],
+       [
+        80.19600397661439,
+        12.9397505420983
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 8,
+    "parcel": "Pallikaranai-Control-Builtup",
+    "predicted": "low",
+    "area_m2": 1901.2,
+    "label": "unsure",
+    "note": "established housing both years at centre; no clear change",
+    "kind": "detection"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        80.19765230962047,
+        12.943191560095936
+       ],
+       [
+        80.19765375543622,
+        12.942739466877034
+       ],
+       [
+        80.19728501325098,
+        12.942738332154695
+       ],
+       [
+        80.19728385607134,
+        12.943100006698307
+       ],
+       [
+        80.1973760417472,
+        12.943100290435956
+       ],
+       [
+        80.19737575248001,
+        12.94319070907233
+       ],
+       [
+        80.19765230962047,
+        12.943191560095936
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 9,
+    "parcel": "Pallikaranai-Control-Builtup",
+    "predicted": null,
+    "label": "real",
+    "note": "long metal-roofed shed ~100 m N of detection 8 (2023); approx. position, verify inside parcel",
+    "kind": "missed"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       80.19733000000001,
+       12.943729999999999
+      ],
+      [
+       80.19757,
+       12.943729999999999
+      ],
+      [
+       80.19757,
+       12.94397
+      ],
+      [
+       80.19733000000001,
+       12.94397
+      ],
+      [
+       80.19733000000001,
+       12.943729999999999
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}
