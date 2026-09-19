@@ -25,10 +25,10 @@ export const testAlert = (recipient: string) =>
     body: JSON.stringify({ recipient }),
   });
 
-export const PROVIDER_LABEL: Record<AlertProvider, string> = {
+/** Channels offered in the UI. Telegram exists server-side but is not offered here. */
+export const PROVIDER_LABEL: Partial<Record<AlertProvider, string>> = {
+  email: 'E-mail',
   console: 'Server log only',
-  telegram: 'Telegram bot',
-  email: 'E-mail (SMTP)',
 };
 export const RECIPIENT_HINT: Record<AlertProvider, string> = {
   console: 'No recipients needed; each alert is written to the server log.',
