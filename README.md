@@ -98,7 +98,9 @@ python scripts\composites_to_local_scenes.py ..\data     # writes data\local_sce
 # in .env:  IMAGERY_PROVIDER=local_folder
 ```
 
-Evidence thumbnails land in `data\evidence\<scan>\<detection>\` (before/after false colour + change map).
+Evidence thumbnails land in `data\evidence\<scan>\<detection>\` (before/after false colour + change map)
+and are served only to signed-in users via `/api/v1/files/...`. Export the filtered detections with
+`GET /api/v1/detections/export?format=geojson|csv` (or the buttons in the review screen).
 
 ### 5. Quality checks
 

@@ -77,7 +77,7 @@ def db(pg_engine) -> Iterator[Session]:  # type: ignore[no-untyped-def]
     """One transaction per test, rolled back at the end (fast, isolated)."""
     conn = pg_engine.connect()
     tx = conn.begin()
-    session = Session(bind=conn, join_transaction_mode="create_savepoint")
+    session = Session(bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
     try:
         yield session
     finally:

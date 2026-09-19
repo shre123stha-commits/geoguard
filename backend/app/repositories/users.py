@@ -28,6 +28,12 @@ class UserRepository:
         )
         return list(rows), total
 
+    def names_for(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+        if not ids:
+            return {}
+        rows = self.db.execute(select(User.id, User.full_name).where(User.id.in_(list(set(ids)))))
+        return {uid: name for uid, name in rows}
+
     def count_active_admins(self) -> int:
         return int(
             self.db.scalar(
