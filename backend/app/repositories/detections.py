@@ -6,8 +6,8 @@ from geoalchemy2 import Geography
 from sqlalchemy import Select, cast, func, select
 from sqlalchemy.orm import Session
 
-from app.db.enums import ConfidenceClass, DetectionStatus
-from app.db.models import Detection, DetectionStatusHistory, Parcel, Scan
+from app.db.enums import ConfidenceClass, DetectionStatus, EvidenceKind
+from app.db.models import Detection, DetectionStatusHistory, EvidenceFile, Parcel, Scan
 from app.repositories.base import geojson_to_multipolygon, to_db
 
 
@@ -111,15 +111,57 @@ class DetectionRepository:
         self.db.flush()
         return hist
 
+    def add_evidence(
+        self,
+        det: Detection,
+        kind: EvidenceKind,
+        path: str,
+        width_px: int | None = None,
+        height_px: int | None = None,
+        bounds: dict[str, Any] | None = None,
+    ) -> EvidenceFile:
+        from shapely.geometry import shape
+
+        ev = EvidenceFile(
+            detection_id=det.id,
+            kind=kind,
+            path=path,
+            width_px=width_px,
+            height_px=height_px,
+            bounds=to_db(shape(bounds)) if bounds else None,
+        )
+        self.db.add(ev)
+        self.db.flush()
+        return ev
+
+    def evidence_for(self, det: Detection) -> list[EvidenceFile]:
+        return list(
+            self.db.scalars(select(EvidenceFile).where(EvidenceFile.detection_id == det.id))
+        )
+
+    def count_by_scan(self, scan_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        if not scan_ids:
+            return {}
+        rows = self.db.execute(
+            select(Detection.scan_id, func.count())
+            .where(Detection.scan_id.in_(scan_ids))
+            .group_by(Detection.scan_id)
+        )
+        return {sid: int(n) for sid, n in rows}
+
     def find_previous_match(self, det: Detection) -> Detection | None:
         """Same site seen in an earlier scan: overlap > 50 % of the smaller area (schema 05 §6)."""
         inter = func.ST_Area(cast(func.ST_Intersection(Detection.geom, det.geom), Geography))
+        # Candidates come from other scans created no later than this one (`<=`: rows written in
+        # the same transaction share now()); the detection itself is excluded via scan_id.
         q = (
             select(Detection)
-            .where(Detection.id != det.id, Detection.created_at < det.created_at)
+            .join(Scan, Scan.id == Detection.scan_id)
+            .where(Detection.scan_id != det.scan_id)
+            .where(Detection.created_at <= det.created_at)
             .where(func.ST_Intersects(Detection.geom, det.geom))
             .where(inter > 0.5 * func.least(Detection.area_m2, det.area_m2))
-            .order_by(Detection.created_at.desc())
+            .order_by(Scan.created_at.desc(), Detection.created_at.desc())
             .limit(1)
         )
         return self.db.scalar(q)

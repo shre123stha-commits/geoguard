@@ -4,15 +4,14 @@ import type { FeatureCollection as GJFeatureCollection, Geometry } from 'geojson
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  createScan,
   getDetections,
   getParcels,
-  getScans,
   setDetectionStatus,
   type Confidence,
   type DetectionProps,
   type DetectionStatus,
 } from '@/api/prototype';
+import { createScan, isOpen, listScans } from '@/api/scans';
 import { useAuth } from '@/app/useAuth';
 import { Link } from 'react-router-dom';
 
@@ -84,13 +83,32 @@ export function ReviewPage() {
   const { user, logout } = useAuth();
   const parcels = useQuery({ queryKey: ['parcels'], queryFn: getParcels });
   const detections = useQuery({ queryKey: ['detections'], queryFn: getDetections });
-  const scans = useQuery({ queryKey: ['scans'], queryFn: getScans });
+  const scans = useQuery({
+    queryKey: ['scans'],
+    queryFn: () => listScans(1, 1),
+    // poll while the newest scan is queued/running so progress shows live
+    refetchInterval: (q) => (isOpen(q.state.data?.items[0]) ? 1500 : false),
+  });
+  const lastScan = scans.data?.items[0];
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const open = isOpen(lastScan);
+    if (wasOpen.current && !open) void qc.invalidateQueries({ queryKey: ['detections'] });
+    wasOpen.current = open;
+  }, [lastScan, qc]);
   const scan = useMutation({
-    mutationFn: () => createScan(),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['detections'] });
-      void qc.invalidateQueries({ queryKey: ['scans'] });
+    mutationFn: () => {
+      const ids = parcels.data?.features.map((f) => f.id) ?? [];
+      // Same windows as the evaluated sample run; a full scan form arrives with the scans page.
+      return createScan({
+        parcel_ids: ids,
+        baseline_start: '2020-01-15',
+        baseline_end: '2020-03-31',
+        current_start: '2023-01-15',
+        current_end: '2023-03-31',
+      });
     },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['scans'] }),
   });
   const status = useMutation({
     mutationFn: (v: { id: number; status: DetectionStatus; note: string }) =>
@@ -245,8 +263,6 @@ export function ReviewPage() {
     return c;
   }, [detections.data]);
 
-  const lastScan = scans.data?.[scans.data.length - 1];
-
   return (
     <div className="grid h-dvh grid-rows-[minmax(0,45dvh)_1fr] sm:grid-rows-1 sm:grid-cols-[380px_1fr]">
       <aside className="flex min-h-0 flex-col overflow-hidden border-b border-hair bg-base sm:border-b-0 sm:border-r">
@@ -283,19 +299,25 @@ export function ReviewPage() {
           <div className="mt-3 flex items-center gap-2">
             <button
               className="rounded-ctl border border-hair-strong bg-s2 px-3 py-1.5 text-[13px] font-medium hover:bg-s3 disabled:opacity-50"
-              disabled={scan.isPending}
+              disabled={scan.isPending || isOpen(lastScan) || user?.role !== 'admin'}
               onClick={() => scan.mutate()}
+              title={user?.role !== 'admin' ? 'Only administrators can start scans' : undefined}
             >
-              {scan.isPending ? 'Scanning…' : 'Run scan'}
+              {isOpen(lastScan) ? 'Scanning…' : 'Run scan'}
             </button>
             <span className="font-mono text-[12px] text-soft">
               {lastScan
-                ? `scan #${lastScan.id} ${lastScan.status} · ${lastScan.detections} detections`
-                : 'showing last saved run'}
+                ? isOpen(lastScan)
+                  ? `${lastScan.progress}% · ${lastScan.message ?? lastScan.status}`
+                  : `last scan ${lastScan.status} · ${lastScan.detection_count} detections`
+                : 'no scans yet'}
             </span>
           </div>
           {scan.isError && (
             <p className="mt-2 text-[13px] text-high">{(scan.error as Error).message}</p>
+          )}
+          {lastScan?.status === 'failed' && lastScan.message && (
+            <p className="mt-2 text-[13px] text-high">{lastScan.message}</p>
           )}
         </header>
 

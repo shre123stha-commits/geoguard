@@ -48,21 +48,8 @@ export interface ParcelCollection extends FeatureCollection<ParcelProps, string>
   page_size: number;
 }
 
-export interface Scan {
-  id: number;
-  status: 'running' | 'done' | 'failed';
-  created_at: string;
-  finished_at?: string;
-  params: { t_bui: number; t_sar_db: number; overlap: number };
-  detections: number;
-  error: string | null;
-}
-
 export const getParcels = () => apiFetch<ParcelCollection>('parcels?page_size=200');
 export const getDetections = () => apiFetch<FeatureCollection<DetectionProps>>('detections');
-export const getScans = () => apiFetch<Scan[]>('scans');
-export const createScan = (params: Partial<Scan['params']> = {}) =>
-  apiFetch<Scan>('scans', { method: 'POST', body: JSON.stringify(params) });
 export const setDetectionStatus = (id: number, status: DetectionStatus, note = '') =>
   apiFetch<DetectionProps>(`detections/${id}/status`, {
     method: 'POST',

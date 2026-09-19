@@ -12,8 +12,7 @@ import numpy as np
 from app.pipeline.grid import TargetGrid
 from app.pipeline.optical import Composite, median_composite, scl_valid_mask, to_reflectance
 from app.pipeline.radar import median_composite_db
-from app.pipeline.sources.base import ImageryError, SceneRef
-from app.pipeline.sources.planetary_computer import PlanetaryComputerSource
+from app.pipeline.sources.base import GridReader, ImageryError, SceneRef
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +29,7 @@ class PeriodComposites:
     radar_scenes: list[SceneRef]
 
 
-def build_optical_composite(
-    src: PlanetaryComputerSource, scenes: list[SceneRef], grid: TargetGrid
-) -> Composite:
+def build_optical_composite(src: GridReader, scenes: list[SceneRef], grid: TargetGrid) -> Composite:
     if not scenes:
         raise ImageryError(
             "No clear optical scenes in that period. Try a wider window or a different season."
@@ -57,9 +54,7 @@ def build_optical_composite(
     return comp
 
 
-def build_radar_composite(
-    src: PlanetaryComputerSource, scenes: list[SceneRef], grid: TargetGrid
-) -> Composite:
+def build_radar_composite(src: GridReader, scenes: list[SceneRef], grid: TargetGrid) -> Composite:
     if not scenes:
         raise ImageryError("No radar scenes in that period. Try a wider window.")
     t0 = time.perf_counter()

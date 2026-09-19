@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Parcel, ScanSchedule, ScheduleParcel
@@ -50,4 +50,28 @@ class ScheduleRepository:
 
     def set_active(self, s: ScanSchedule, active: bool) -> None:
         s.is_active = active
+        self.db.flush()
+
+    def list_page(self, offset: int, limit: int) -> tuple[list[ScanSchedule], int]:
+        total = int(self.db.scalar(select(func.count()).select_from(ScanSchedule)) or 0)
+        rows = self.db.scalars(
+            select(ScanSchedule)
+            .order_by(ScanSchedule.created_at, ScanSchedule.id)
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(rows), total
+
+    def set_parcels(self, s: ScanSchedule, parcels: list[Parcel]) -> None:
+        if not parcels:
+            raise ValueError("a schedule needs at least one parcel")
+        self.db.execute(delete(ScheduleParcel).where(ScheduleParcel.schedule_id == s.id))
+        for p in parcels:
+            self.db.add(ScheduleParcel(schedule_id=s.id, parcel_id=p.id))
+        self.db.flush()
+        self.db.expire(s, ["parcels"])
+
+    def delete(self, s: ScanSchedule) -> None:
+        """Past scans keep their rows (scans.schedule_id -> NULL via FK)."""
+        self.db.delete(s)
         self.db.flush()

@@ -6,9 +6,12 @@ date, footprint, cloud cover and links to its image files. Searching never downl
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from app.pipeline.grid import TargetGrid
 
 BBox = tuple[float, float, float, float]  # (min_lon, min_lat, max_lon, max_lat), EPSG:4326
 DateRange = tuple[date, date]  # inclusive
@@ -49,6 +52,18 @@ class ImagerySource(Protocol):
     ) -> np.ndarray:
         """Windowed read of `bands` for `bbox`, resampled to a common grid (task 1.3)."""
         ...
+
+
+class GridReader(Protocol):
+    """What the composite builders need: search + read straight onto a TargetGrid."""
+
+    def search_optical(
+        self, bbox: BBox, date_range: DateRange, max_cloud: float
+    ) -> list[SceneRef]: ...
+
+    def search_radar(self, bbox: BBox, date_range: DateRange) -> list[SceneRef]: ...
+
+    def read_grid(self, scene: SceneRef, bands: list[str], grid: "TargetGrid") -> np.ndarray: ...
 
 
 class ImageryError(Exception):

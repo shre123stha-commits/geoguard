@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     basemap_attribution: str = "© OpenStreetMap contributors"
 
     scheduler_enabled: bool = True
+    worker_enabled: bool = True  # in-process scan worker (techspec §7); off in tests
+    worker_poll_seconds: float = Field(default=3.0, ge=0.5, le=60)
+    worker_stale_hours: float = Field(default=2.0, ge=0.1, le=48)
     first_admin_email: str = ""
     first_admin_password: SecretStr = SecretStr("CHANGE_ME")
 

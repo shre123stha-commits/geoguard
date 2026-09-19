@@ -83,6 +83,23 @@ Open http://localhost:5173 and sign in with `FIRST_ADMIN_EMAIL` / `FIRST_ADMIN_P
 password. Admins create further accounts through `POST /api/v1/users` (UI arrives in Phase 6);
 five failed logins pause that email/IP for five minutes.
 
+### 4b. Running scans
+
+Scans are queued through the API (or the **Run scan** button) and processed by a worker thread
+inside the backend process (`WORKER_ENABLED=true`). Recurring scans (`/api/v1/schedules`) are
+fired by a scheduler tick every minute (`SCHEDULER_ENABLED=true`).
+
+Imagery comes from the public Planetary Computer STAC by default (`IMAGERY_PROVIDER=stac_public`).
+For a no-network demo on the sample area, convert the Phase 1 composites once and switch provider:
+
+```powershell
+cd backend
+python scripts\composites_to_local_scenes.py ..\data     # writes data\local_scenes\
+# in .env:  IMAGERY_PROVIDER=local_folder
+```
+
+Evidence thumbnails land in `data\evidence\<scan>\<detection>\` (before/after false colour + change map).
+
 ### 5. Quality checks
 
 ```powershell

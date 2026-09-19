@@ -1,4 +1,4 @@
-"""File-backed detections/scans slice (parcels moved to the DB-backed router in Phase 3)."""
+"""File-backed detections slice (parcels → Phase 3 router, scans → Phase 4 router)."""
 
 import json
 from pathlib import Path
@@ -55,7 +55,7 @@ def _data_dir(tmp_path: Path) -> Path:
 
 
 def _client(tmp_path: Path) -> TestClient:
-    settings = Settings(data_dir=_data_dir(tmp_path), environment="test")
+    settings = Settings(data_dir=_data_dir(tmp_path), environment="test", worker_enabled=False)
     return TestClient(create_app(settings))
 
 
@@ -78,10 +78,3 @@ def test_status_workflow_requires_dismiss_reason(tmp_path: Path) -> None:
         assert r.json()["error"]["code"] == "bad_request"
         r = c.post("/api/v1/detections/1/status", json={"status": "confirmed", "note": "seen"})
         assert r.json()["status"] == "confirmed"
-
-
-def test_scan_without_composites_is_409(tmp_path: Path) -> None:
-    with _client(tmp_path) as c:
-        r = c.post("/api/v1/scans", json={})
-        assert r.status_code == 409
-        assert c.get("/api/v1/scans").json() == []
