@@ -1,0 +1,390 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as maplibregl from 'maplibre-gl';
+import type { FeatureCollection as GJFeatureCollection, Geometry } from 'geojson';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createScan,
+  getDetections,
+  getParcels,
+  getScans,
+  setDetectionStatus,
+  type Confidence,
+  type DetectionProps,
+  type DetectionStatus,
+} from '@/api/prototype';
+
+/** Phase-1 vertical slice: parcels + detections on a map with a review panel (tracker D42). */
+
+const CONF_COLOR: Record<Confidence, string> = {
+  high: '#e8735a',
+  medium: '#e6b455',
+  low: '#9aa79b',
+};
+
+const BASEMAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#0d0b09' } },
+    {
+      id: 'osm',
+      type: 'raster',
+      source: 'osm',
+      paint: { 'raster-saturation': -0.85, 'raster-brightness-max': 0.55, 'raster-contrast': 0.15 },
+    },
+  ],
+};
+
+function bboxOf(fc: {
+  features: { geometry: Geometry }[];
+}): [number, number, number, number] | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const visit = (c: unknown): void => {
+    if (Array.isArray(c) && typeof c[0] === 'number') {
+      const [x, y] = c as number[];
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    } else if (Array.isArray(c)) {
+      c.forEach(visit);
+    }
+  };
+  fc.features.forEach((f) => visit((f.geometry as { coordinates: unknown }).coordinates));
+  return Number.isFinite(minX) ? [minX, minY, maxX, maxY] : null;
+}
+
+export function ReviewPage() {
+  const qc = useQueryClient();
+  const parcels = useQuery({ queryKey: ['parcels'], queryFn: getParcels });
+  const detections = useQuery({ queryKey: ['detections'], queryFn: getDetections });
+  const scans = useQuery({ queryKey: ['scans'], queryFn: getScans });
+  const scan = useMutation({
+    mutationFn: () => createScan(),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['detections'] });
+      void qc.invalidateQueries({ queryKey: ['scans'] });
+    },
+  });
+  const status = useMutation({
+    mutationFn: (v: { id: number; status: DetectionStatus; note: string }) =>
+      setDetectionStatus(v.id, v.status, v.note),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['detections'] }),
+  });
+
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Confidence | 'all'>('all');
+  const [note, setNote] = useState('');
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  const visible = useMemo(() => {
+    if (!detections.data) return [];
+    return detections.data.features.filter(
+      (f) => filter === 'all' || f.properties.confidence === filter,
+    );
+  }, [detections.data, filter]);
+  const selected =
+    detections.data?.features.find((f) => f.properties.id === selectedId)?.properties ?? null;
+
+  // Create the map once.
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: BASEMAP_STYLE,
+      center: [80.193, 12.941],
+      zoom: 14.5,
+      attributionControl: { compact: true },
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+    map.on('load', () => {
+      map.addSource('parcels', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      map.addSource('detections', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      map.addLayer({
+        id: 'parcel-line',
+        type: 'line',
+        source: 'parcels',
+        paint: { 'line-color': '#f3efe6', 'line-width': 1.5, 'line-opacity': 0.8 },
+      });
+      map.addLayer({
+        id: 'det-fill',
+        type: 'fill',
+        source: 'detections',
+        paint: {
+          'fill-color': [
+            'match',
+            ['get', 'confidence'],
+            'high',
+            CONF_COLOR.high,
+            'medium',
+            CONF_COLOR.medium,
+            CONF_COLOR.low,
+          ],
+          'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 0.65, 0.35],
+        },
+      });
+      map.addLayer({
+        id: 'det-line',
+        type: 'line',
+        source: 'detections',
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'confidence'],
+            'high',
+            CONF_COLOR.high,
+            'medium',
+            CONF_COLOR.medium,
+            CONF_COLOR.low,
+          ],
+          'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1.5],
+        },
+      });
+      map.on('click', 'det-fill', (e: maplibregl.MapLayerMouseEvent) => {
+        const f = e.features?.[0];
+        if (f) setSelectedId(Number(f.id));
+      });
+      map.on('mouseenter', 'det-fill', () => (map.getCanvas().style.cursor = 'pointer'));
+      map.on('mouseleave', 'det-fill', () => (map.getCanvas().style.cursor = ''));
+      mapRef.current = map;
+      setMapReady(true);
+    });
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+  // Push data into the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !parcels.data) return;
+    (map.getSource('parcels') as maplibregl.GeoJSONSource).setData(
+      parcels.data as GJFeatureCollection,
+    );
+    const b = bboxOf(parcels.data);
+    if (b) map.fitBounds(b, { padding: 40, duration: 0 });
+  }, [parcels.data, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    (map.getSource('detections') as maplibregl.GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: visible,
+    } as GJFeatureCollection);
+  }, [visible, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !detections.data) return;
+    detections.data.features.forEach((f) =>
+      map.setFeatureState(
+        { source: 'detections', id: f.properties.id },
+        { selected: f.properties.id === selectedId },
+      ),
+    );
+  }, [selectedId, detections.data, mapReady, visible]);
+
+  const counts = useMemo(() => {
+    const c = { high: 0, medium: 0, low: 0 };
+    detections.data?.features.forEach((f) => (c[f.properties.confidence] += 1));
+    return c;
+  }, [detections.data]);
+
+  const lastScan = scans.data?.[scans.data.length - 1];
+
+  return (
+    <div className="grid h-dvh grid-cols-1 md:grid-cols-[400px_1fr]">
+      <aside className="flex flex-col overflow-hidden border-r border-hair bg-base">
+        <header className="border-b border-hair px-5 py-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">
+            Prototype · Phase 1
+          </p>
+          <h1 className="font-display text-[28px] font-medium leading-none tracking-[-0.03em]">
+            GeoGuard<sup className="ml-1 text-[0.4em] align-super">EO</sup>
+          </h1>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              className="rounded-ctl border border-hair-strong bg-s2 px-3 py-1.5 text-[13px] font-medium hover:bg-s3 disabled:opacity-50"
+              disabled={scan.isPending}
+              onClick={() => scan.mutate()}
+            >
+              {scan.isPending ? 'Scanning…' : 'Run scan'}
+            </button>
+            <span className="font-mono text-[12px] text-soft">
+              {lastScan
+                ? `scan #${lastScan.id} ${lastScan.status} · ${lastScan.detections} detections`
+                : 'showing last saved run'}
+            </span>
+          </div>
+          {scan.isError && (
+            <p className="mt-2 text-[13px] text-high">{(scan.error as Error).message}</p>
+          )}
+        </header>
+
+        <div className="flex gap-1 border-b border-hair px-5 py-2">
+          {(['all', 'high', 'medium', 'low'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setFilter(k)}
+              className={`rounded-full px-3 py-1 font-mono text-[12px] ${
+                filter === k ? 'bg-s3 text-cream' : 'text-soft hover:bg-s1'
+              }`}
+            >
+              {k}
+              {k !== 'all' && <span className="ml-1 text-dim">{counts[k]}</span>}
+            </button>
+          ))}
+        </div>
+
+        <ul className="flex-1 overflow-y-auto">
+          {detections.isPending && <li className="px-5 py-4 text-soft">Loading…</li>}
+          {detections.isError && (
+            <li className="px-5 py-4 text-soft">API not reachable. Start the backend.</li>
+          )}
+          {visible.map((f) => {
+            const p = f.properties;
+            const active = p.id === selectedId;
+            return (
+              <li key={p.id}>
+                <button
+                  onClick={() => {
+                    setSelectedId(p.id);
+                    setNote('');
+                    const b = bboxOf({ features: [f] });
+                    if (b) mapRef.current?.fitBounds(b, { padding: 120, maxZoom: 17 });
+                  }}
+                  className={`flex w-full items-center gap-3 border-b border-hair px-5 py-3 text-left hover:bg-s1 ${
+                    active ? 'bg-s2' : ''
+                  }`}
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: CONF_COLOR[p.confidence] }}
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[14px] font-medium">
+                      {p.parcel_name?.replace('Pallikaranai-', '')} ·{' '}
+                      {Math.round(p.area_m2).toLocaleString()} m²
+                    </span>
+                    <span className="block font-mono text-[12px] text-soft">
+                      {p.confidence} · score {p.score.toFixed(2)} · {p.status}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {selected && (
+          <DetailPanel
+            d={selected}
+            note={note}
+            setNote={setNote}
+            onStatus={(s) => status.mutate({ id: selected.id, status: s, note })}
+            error={status.error as Error | null}
+          />
+        )}
+
+        <footer className="border-t border-hair px-5 py-3 text-[12px] text-soft">
+          {detections.data?.disclaimer ??
+            'Satellite detection is a screening aid. Verify on the ground before acting.'}
+        </footer>
+      </aside>
+      <div ref={containerRef} className="min-h-[50dvh]" />
+    </div>
+  );
+}
+
+function DetailPanel({
+  d,
+  note,
+  setNote,
+  onStatus,
+  error,
+}: {
+  d: DetectionProps;
+  note: string;
+  setNote: (v: string) => void;
+  onStatus: (s: DetectionStatus) => void;
+  error: Error | null;
+}) {
+  const m = d.metrics;
+  return (
+    <section className="border-t border-hair-strong bg-s1 px-5 py-4">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-display text-[18px] font-medium tracking-[-0.02em]">
+          Detection #{d.id}
+        </h2>
+        <span className="font-mono text-[12px]" style={{ color: CONF_COLOR[d.confidence] }}>
+          {d.confidence.toUpperCase()}
+        </span>
+      </div>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 font-mono text-[12px]">
+        <dt className="text-soft">area</dt>
+        <dd>{Math.round(d.area_m2).toLocaleString()} m² (geodesic)</dd>
+        <dt className="text-soft">sensors</dt>
+        <dd>{d.sources.join(' + ')}</dd>
+        <dt className="text-soft">ΔBUI</dt>
+        <dd>{m.d_bui_mean != null ? m.d_bui_mean.toFixed(2) : '—'}</dd>
+        <dt className="text-soft">Δσ⁰ VV</dt>
+        <dd>{m.d_sigma_vv_mean_db != null ? `${m.d_sigma_vv_mean_db.toFixed(1)} dB` : '—'}</dd>
+        <dt className="text-soft">radar overlap</dt>
+        <dd>{m.sar_overlap != null ? `${Math.round(m.sar_overlap * 100)} %` : '—'}</dd>
+        <dt className="text-soft">score</dt>
+        <dd>{d.score.toFixed(2)}</dd>
+        <dt className="text-soft">algorithm</dt>
+        <dd>{d.algorithm_version ?? '—'}</dd>
+        <dt className="text-soft">status</dt>
+        <dd>
+          {d.status}
+          {d.status_note ? ` — ${d.status_note}` : ''}
+        </dd>
+      </dl>
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Note (required to dismiss)"
+        className="mt-3 w-full rounded-ctl border border-hair bg-base px-3 py-1.5 text-[13px] placeholder:text-dim"
+      />
+      <div className="mt-2 flex gap-2">
+        {(
+          [
+            ['confirmed', 'Confirm'],
+            ['field_visit', 'Field visit'],
+            ['dismissed', 'Dismiss'],
+          ] as const
+        ).map(([s, label]) => (
+          <button
+            key={s}
+            onClick={() => onStatus(s)}
+            className="rounded-ctl border border-hair px-3 py-1 text-[13px] hover:bg-s2"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {error && <p className="mt-2 text-[12px] text-high">{error.message}</p>}
+    </section>
+  );
+}
