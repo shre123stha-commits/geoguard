@@ -4,7 +4,7 @@
 > Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Current phase:** Phase 0 — Foundation (code complete; 0.3 and 0.7 need manual verification on the Windows machine)
-**Current task:** 1.1 (blocked on Q1 — test area choice)
+**Current task:** 1.2 (`ImagerySource` + first STAC source; scene search)
 **Last updated:** 2026-09-19
 **Last updated by:** Arena Agent
 
@@ -39,7 +39,7 @@
 - [x] 0.8 Free-Services Audit (fill §6)
 
 ### Phase 1 — Detection Prototype
-- [ ] 1.1 Test area, parcel boundaries (OSM export or hand-traced), date windows
+- [x] 1.1 Test area, parcel boundaries (OSM export or hand-traced), date windows — Pallikaranai marsh edge; 3 hand-traced parcels (1 change, 2 controls) in `data/samples/parcels.geojson`; windows 2020-01-15→03-31 vs 2023-01-15→03-31 in `windows.json`; validated (all valid, no overlaps, 19.8/4.7/3.4 ha, AOI 1.4×1.1 km)
 - [ ] 1.2 `ImagerySource` + first concrete source; scene search
 - [ ] 1.3 Windowed band reads + cache
 - [ ] 1.4 Cloud mask + composites
@@ -121,13 +121,14 @@ Record every meaningful decision here (append only).
 | D13 | 2026-09-19 | `/health` is served both at `/health` and `/api/v1/health`; it returns HTTP 200 with `status: degraded` when the DB is unreachable (never 500) | Liveness must not depend on the DB; `database` field carries the DB state (techspec §9) | 503 when DB down |
 | D14 | 2026-09-19 | Standard error format `{error:{code,message,details}}` is installed globally from task 0.5 (not deferred to 3.3) | Every response, including 404/422, should be consistent from day one | Add in 3.3 |
 | D15 | 2026-09-19 | Vite dev server proxies `/api`, `/files`, `/health` to `localhost:8000`; browser code uses relative URLs only | Avoids CORS in dev and keeps the API host out of frontend code | Absolute API URL via env var |
+| D17 | 2026-09-19 | Test area = Pallikaranai marsh edge, Chennai; parcels hand-traced at geojson.io; ≥1 change parcel + 2 control parcels (marsh interior, stable built-up); same dry-season windows (Jan–Mar) | Owner can verify locally; strong known construction pressure; dry season minimises cloud and seasonal-water false positives | Adyar/Cooum riverbed; unknown government plot |
 | D16 | 2026-09-19 | Primary imagery: Microsoft Planetary Computer STAC (no account needed since June 2024, incl. Sentinel-1 RTC). Fallback: CDSE STAC v1 `https://stac.dataspace.copernicus.eu/v1` (free account for downloads) | Audit in §6 | CDSE as primary (needs token from day one) |
 
 ## 4. Open Questions
 
 | # | Question | Owner | Needed by | Status |
 |---|----------|-------|-----------|--------|
-| Q1 | Which test area (and its parcel source) for development and evaluation? Pick a place you can verify easily against a satellite basemap. Suggested options near Chennai/Tambaram: (a) Pallikaranai marsh reserve edge, (b) Adyar/Cooum riverbed stretch, (c) a government plot the owner knows. Export boundaries from OSM (overpass-turbo.eu → export GeoJSON) or trace at geojson.io | Shrestha | Task 1.1 | open |
+| Q1 | Which test area (and its parcel source) for development and evaluation? Pick a place you can verify easily against a satellite basemap. Suggested options near Chennai/Tambaram: (a) Pallikaranai marsh reserve edge, (b) Adyar/Cooum riverbed stretch, (c) a government plot the owner knows. Export boundaries from OSM (overpass-turbo.eu → export GeoJSON) or trace at geojson.io | Shrestha | Task 1.1 | **resolved 2026-09-19: Pallikaranai marsh edge** (D17); files pending in `data/samples/` |
 | Q6 | GitHub repo URL and visibility (public → free unlimited CI minutes) | Shrestha | Task 0.7 verification | open |
 | Q7 | Project license (MIT recommended) | Shrestha | 8.3 | open |
 | Q2 | SMS provider | — | — | resolved: console-only, optional Telegram/email (D6) |
@@ -188,6 +189,7 @@ Also record precision separately for each confidence class (`high`, `medium`, `l
 | 2026-09-19 | 0.6 | Vite + React 18 + TS strict + Tailwind (tokens from 04-design §3), react-router, TanStack Query, MapLibre/terra-draw/fontsource deps installed, ESLint flat config + Prettier, Vitest + RTL; `HealthPage` with loading/error/data states; 2 Vitest tests | Arena Agent |
 | 2026-09-19 | 0.7 | `.pre-commit-config.yaml` (ruff, prettier, private-key & large-file checks), `.github/workflows/ci.yml` (backend + frontend jobs) | Arena Agent |
 | 2026-09-19 | 0.8 | Free-Services Audit table §6 filled with live checks | Arena Agent |
+| 2026-09-19 | 1.1 | Owner traced 3 parcels at geojson.io from Esri Wayback comparison; validated with shapely/pyproj; `data/samples/{parcels.geojson,windows.json,README.md}` (gitignored — owner keeps copy in OneDrive workspace) | Shrestha + Arena Agent |
 
 ## 10. Session Handoff Notes
 
@@ -195,6 +197,6 @@ Also record precision separately for each confidence class (`high`, `medium`, `l
 
 - **Done (2026-09-19, Arena Agent):** Phase 0 code for 0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8. Verified in a Linux sandbox (Python 3.13, Node 20): `ruff check` / `ruff format --check` / `mypy` clean, `pytest` 7 passed; `eslint` / `tsc -b` clean, `vitest` 2 passed, `vite build` OK; uvicorn boots, `GET /health` → 200 `degraded` (no DB in sandbox); Vite proxy to `/api/v1/health` works.
 - **Half-done:** 0.3 needs the owner's Windows PostGIS (`.\scripts\check-postgis.ps1`), then confirm `/health` returns `database: ok` and a PostGIS version. 0.7 needs the first push so Actions runs. Repo not pushed yet (Q6).
-- **Next:** 1.1 — blocked on Q1 (test area). Owner picks the area and produces `data/samples/parcels.geojson`; then install geo extras `pip install -e ".[geo]"` on Windows and report any wheel errors.
+- **Next:** 1.2 — `ImagerySource` Protocol + `PlanetaryComputerSource` (pystac-client, anonymous signing), search S2 L2A (cloud ≤ 30) and S1 RTC for the AOI in both windows, print scene lists. Owner must first run `pip install -e ".[geo]"` on Windows and report any wheel errors. Note: West-1 is 20 ha — `expected_change=yes` means change *somewhere inside*; label exact spots at 1.10. `data/` is gitignored: keep `data/samples/` copies in sync between owner PC and sandbox.
 - **Gotchas:** Docs say Python 3.11+ — sandbox used 3.13; verify `pip install -e ".[geo]"` on the owner's Python version (rasterio wheels for 3.13 on Windows may lag; 3.11/3.12 are safest). Vite's template now ships React 19 — we pinned 18 (D11). `vite.config.ts` has `allowedHosts: ['.e2b.app', 'localhost']` for sandbox previews; harmless but can be removed.
 - **Resume commands (PowerShell):** `cd geoguard-eo; .\.venv\Scripts\Activate.ps1; cd backend; pytest; cd ..\frontend; npm test`
