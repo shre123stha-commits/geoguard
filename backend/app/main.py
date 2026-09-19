@@ -9,8 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
 from app.api.health import router as health_router
+from app.api.prototype import router as prototype_router
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
+from app.services.prototype import PrototypeStore
 
 API_PREFIX = "/api/v1"
 logger = logging.getLogger(__name__)
@@ -20,6 +22,9 @@ logger = logging.getLogger(__name__)
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     settings.data_dir.mkdir(parents=True, exist_ok=True)
+    store = PrototypeStore(settings.data_dir)
+    store.load()
+    app.state.prototype_store = store
     if settings.jwt_secret_is_placeholder and settings.environment == "prod":
         raise RuntimeError("JWT_SECRET must be set in production")
     if settings.jwt_secret_is_placeholder:
@@ -52,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # /health is public and unversioned (techspec §6); also mounted under the API prefix.
     app.include_router(health_router)
     app.include_router(health_router, prefix=API_PREFIX)
+    app.include_router(prototype_router, prefix=API_PREFIX)
     return app
 
 
