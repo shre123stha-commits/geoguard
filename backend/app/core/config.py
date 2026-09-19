@@ -2,10 +2,10 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     first_admin_email: str = ""
     first_admin_password: SecretStr = SecretStr("CHANGE_ME")
 
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # NoDecode: value in .env is a plain comma-separated string, not JSON
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod
