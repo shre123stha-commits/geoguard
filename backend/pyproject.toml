@@ -54,7 +54,7 @@ select = ["E", "F", "I", "B", "UP", "N", "W", "T20"]  # T20 forbids print()
 "tests/*" = ["T20"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 files = ["app"]
 plugins = ["pydantic.mypy"]
