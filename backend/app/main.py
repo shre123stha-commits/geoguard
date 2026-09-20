@@ -18,6 +18,7 @@ from app.api.schedules import router as schedules_router
 from app.api.settings import router as settings_router
 from app.api.users import router as users_router
 from app.core.config import Settings, get_settings
+from app.core.hardening import BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from app.core.logging import setup_logging
 from app.services.scheduler import ScanScheduler
 from app.services.throttle import LoginThrottle
@@ -79,13 +80,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="1.0.0",
         docs_url="/docs",
         openapi_url=f"{API_PREFIX}/openapi.json",
         lifespan=_lifespan,
     )
     app.state.settings = settings
     app.state.login_throttle = LoginThrottle()
+    # Outermost first: headers on every response (incl. errors), then the body cap, then CORS.
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
