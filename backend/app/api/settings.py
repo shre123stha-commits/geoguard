@@ -1,6 +1,7 @@
 """/settings/alerts: provider, recipients, minimum confidence (techspec §6; task 7.2)."""
 
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
@@ -11,6 +12,7 @@ from app.api.deps import AdminUser, DbDep, SettingsDep
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 logger = logging.getLogger(__name__)
+_EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class AlertSettingsOut(alerts.AlertSettings):
@@ -43,6 +45,10 @@ def put_alert_settings(
 ) -> AlertSettingsOut:
     if body.enabled and body.provider != "console" and not body.recipients:
         raise HTTPException(status_code=422, detail="Add at least one recipient")
+    if body.provider == "email":
+        bad = [r for r in body.recipients if not _EMAIL.match(r)]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Not an e-mail address: {bad[0]}")
     issue = alerts.provider_ready(body.provider, env)
     if body.enabled and issue:
         raise HTTPException(status_code=422, detail=f"Provider not configured: {issue}")
@@ -58,6 +64,10 @@ def put_alert_settings(
 @router.post("/alerts/test", status_code=204)
 def test_alert(body: TestBody, _: AdminUser, db: DbDep, env: SettingsDep) -> None:
     cfg = alerts.load_settings(db, env)
+    if cfg.provider == "email" and not _EMAIL.match(body.recipient.strip()):
+        raise HTTPException(
+            status_code=422, detail=f"'{body.recipient.strip()}' is not an e-mail address"
+        )
     try:
         alerts.send_test(env, cfg, body.recipient.strip())
     except AlertError as exc:
