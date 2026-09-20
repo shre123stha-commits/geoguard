@@ -1,5 +1,6 @@
 """Standard error format: { "error": { "code", "message", "details" } } (techspec §6)."""
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -25,6 +26,17 @@ def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        # Never leak stack traces or SQL to clients; the full trace goes to the log.
+        logging.getLogger("app.api").exception(
+            "unhandled error", extra={"step": f"{request.method} {request.url.path}"}
+        )
+        return JSONResponse(
+            status_code=500,
+            content=error_body("internal_error", "Something went wrong on the server"),
+        )
+
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _STATUS_CODES.get(exc.status_code, "error")

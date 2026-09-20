@@ -74,8 +74,8 @@ export function ParcelsPage() {
           }
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <div>
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}

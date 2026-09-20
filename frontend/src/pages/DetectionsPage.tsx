@@ -195,8 +195,8 @@ export function DetectionsPage() {
         </button>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <div>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
           {dets.isPending ? (
             <Skeleton rows={8} />
           ) : dets.isError ? (
@@ -218,7 +218,11 @@ export function DetectionsPage() {
                 {dets.data.total > dets.data.features.length &&
                   ` · showing first ${dets.data.features.length}`}
               </p>
-              <div className="max-h-[70vh] overflow-y-auto">
+              <div
+                className="max-h-[70vh] overflow-y-auto"
+                tabIndex={0}
+                aria-label="Detections list"
+              >
                 <Table head={['Confidence', 'Parcel', 'Area', 'Sensors', 'Status', 'Found']}>
                   {dets.data.features.map((f) => {
                     const p = f.properties;

@@ -178,7 +178,7 @@ export function Card({
         <header className="mb-4 flex items-start justify-between gap-3">
           <div>
             {step && <p className="font-mono text-[11px] tracking-[0.12em] text-soft">{step}</p>}
-            {title && <h3 className="text-[18px] font-medium tracking-[-0.02em]">{title}</h3>}
+            {title && <h2 className="text-[18px] font-medium tracking-[-0.02em]">{title}</h2>}
           </div>
           {action}
         </header>
@@ -268,7 +268,7 @@ export function EmptyState({
   return (
     <div className="rounded-card border border-dashed border-hair px-6 py-14 text-center">
       <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-soft">{eyebrow}</p>
-      <h3 className="mt-2 text-[22px] font-medium tracking-[-0.02em]">{title}</h3>
+      <h2 className="mt-2 text-[22px] font-medium tracking-[-0.02em]">{title}</h2>
       {text && <p className="mx-auto mt-2 max-w-[48ch] text-[15px] text-soft">{text}</p>}
       {action && <div className="mt-6 flex justify-center">{action}</div>}
     </div>

@@ -163,6 +163,7 @@ function UploadTab() {
         <Card step="01" title="Choose a file">
           <input
             type="file"
+            aria-label="GeoJSON file"
             accept=".geojson,.json,application/geo+json,application/json"
             onChange={(e) => void onFile(e.target.files?.[0])}
             className="block w-full text-[14px] file:mr-3 file:rounded-full file:border file:border-hair file:bg-transparent file:px-4 file:py-1.5 file:text-[13px] file:text-cream"
