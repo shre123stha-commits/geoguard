@@ -149,6 +149,9 @@ function AlertsCard() {
   const providerOk = q.data.available_providers.includes(form.provider);
   const needsRecipients = form.provider !== 'console' && recipients.length === 0;
   const body: AlertSettings = { ...form, recipients };
+  const testOk =
+    testTo.trim().length > 0 &&
+    (q.data.provider !== 'email' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testTo.trim()));
   const saved: AlertSettings = {
     enabled: q.data.enabled,
     provider: q.data.provider,
@@ -250,22 +253,35 @@ function AlertsCard() {
           )}
         </div>
         {q.data.enabled && (
-          <div className="flex gap-2 pt-1">
-            <Input
-              value={testTo}
-              onChange={(e) => setTestTo(e.target.value)}
-              placeholder={q.data.provider === 'console' ? 'log' : 'recipient to test'}
-              className="font-mono text-[13px]"
-            />
-            <Button
-              className="shrink-0 whitespace-nowrap"
-              busy={test.isPending}
-              disabled={!testTo.trim()}
-              onClick={() => test.mutate()}
-            >
-              Send test
-            </Button>
-          </div>
+          <Field
+            label="Send a test message"
+            hint={
+              q.data.provider === 'email'
+                ? 'Enter the e-mail address that should receive the test.'
+                : 'Any label; the message is written to the server log.'
+            }
+            error={testTo.trim() && !testOk ? 'That is not an e-mail address.' : null}
+          >
+            <div className="flex gap-2">
+              <Input
+                type={q.data.provider === 'email' ? 'email' : 'text'}
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder={
+                  q.data.provider === 'email' ? (q.data.recipients[0] ?? 'you@example.org') : 'log'
+                }
+                className="font-mono text-[13px]"
+              />
+              <Button
+                className="shrink-0 whitespace-nowrap"
+                busy={test.isPending}
+                disabled={!testOk}
+                onClick={() => test.mutate()}
+              >
+                Send test
+              </Button>
+            </div>
+          </Field>
         )}
       </div>
     </Card>
