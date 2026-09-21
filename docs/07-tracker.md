@@ -103,7 +103,7 @@
 
 ### Phase 9 — v1.1: Reference zones and priority (owner request 2026-09-21)
 - [x] 9.1 Reference layers: upload GeoJSON boundaries (wetland / water body / forest / CRZ / land-use / custom) with source + date + buffer; PostGIS zone context on every detection (inside %, distance); priority critical/high/elevated/normal; list filter + badge, detail card, map overlay, CSV/GeoJSON columns, PDF rows, alert line; admin **Zones** page; migration 0007; 2 integration tests (122 total)
-- [ ] 9.2 (optional) Bundled starter layers for Tamil Nadu (Ramsar/Reserve Forest boundaries once the owner obtains official files); OSM wetland extract shipped as `data/samples/pallikaranai_wetland_osm.geojson`
+- [ ] 9.2 (optional) Bundled starter layers for Tamil Nadu (Ramsar/Reserve Forest boundaries once the owner obtains official files); OSM wetland extract shipped as `docs/samples/pallikaranai_wetland_osm.geojson`
 - [ ] 9.3 (optional) "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
 
 ## 3. Decision Log
