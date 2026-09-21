@@ -13,6 +13,7 @@ from app.api.errors import register_error_handlers
 from app.api.files import router as files_router
 from app.api.health import router as health_router
 from app.api.parcels import router as parcels_router
+from app.api.reference import router as reference_router
 from app.api.scans import router as scans_router
 from app.api.schedules import router as schedules_router
 from app.api.settings import router as settings_router
@@ -80,7 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="1.0.0",
+        version="1.1.0",
         docs_url="/docs",
         openapi_url=f"{API_PREFIX}/openapi.json",
         lifespan=_lifespan,
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(users_router, prefix=API_PREFIX)
     app.include_router(parcels_router, prefix=API_PREFIX)
+    app.include_router(reference_router, prefix=API_PREFIX)
     app.include_router(scans_router, prefix=API_PREFIX)
     app.include_router(schedules_router, prefix=API_PREFIX)
     app.include_router(detections_router, prefix=API_PREFIX)

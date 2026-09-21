@@ -3,9 +3,9 @@
 > Single source of truth for status. **Update this file at the end of every task.** Any AI assistant or human must read it before starting work.
 > Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
-**Current phase:** Phase 8 done — **v1.0.0 tagged**. Phase 9 (v1.1) optional
+**Current phase:** Phase 9.1 done — **v1.1.0 tagged** (reference zones & priority)
 **Current task:** none in progress. Owner: push to GitHub (tag included), rotate Supabase password, confirm CI green, label more evaluation sites when reviewing
-**Last updated:** 2026-09-20
+**Last updated:** 2026-09-21
 **Last updated by:** Arena Agent
 
 ---
@@ -14,16 +14,16 @@
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| 0 | Foundation | [~] | Code done and verified in a Linux sandbox; 0.3 (PostGIS) and 0.7 (CI green) await the owner's Windows machine / first push |
-| 1 | Detection Prototype | [ ] | Highest risk; go/no-go at 1.11; blocked on Q1 for task 1.1 |
-| 2 | Database and Models | [ ] | |
-| 3 | Auth, Users, and Parcels API | [ ] | |
-| 4 | Scans, Worker, and Scheduler | [ ] | |
-| 5 | Detections API and Review Logic | [ ] | |
-| 6 | Frontend Core | [ ] | Needs `04-design.md` for final styling |
-| 7 | Reports and Alerts | [ ] | Console alerts first; Telegram/email optional |
-| 8 | Hardening and Release | [ ] | |
-| 9 | v1.1 (optional) | [ ] | |
+| 0 | Foundation | [x] | Owner runs on Windows + Supabase (D49); CI green **needs manual check** after first push |
+| 1 | Detection Prototype | [x] | GO at 1.11; eval §7 |
+| 2 | Database and Models | [x] |  |
+| 3 | Auth, Users, and Parcels API | [x] |  |
+| 4 | Scans, Worker, and Scheduler | [x] |  |
+| 5 | Detections API and Review Logic | [x] |  |
+| 6 | Frontend Core | [x] | 04-design applied |
+| 7 | Reports and Alerts | [x] | E-mail only for owner (D68) |
+| 8 | Hardening and Release | [x] | v1.0.0 tagged 2026-09-20 |
+| 9 | v1.1 — Reference zones & priority | [x] | 9.1 done 2026-09-21 (D74–D76); v1.1.0 |
 | 10 | v2 learned model (optional) | [ ] | |
 
 ## 2. Task Checklist
@@ -94,12 +94,17 @@
 - [ ] 7.3 Telegram / email providers (optional)
 
 ### Phase 8 — Hardening and Release
-- [ ] 8.1 Sample data + first-run onboarding
-- [ ] 8.2 Design system applied + a11y/responsive pass
-- [ ] 8.3 Start scripts, README, user guide (optional Docker Compose)
-- [ ] 8.4 Backup and restore verified
-- [ ] 8.5 Evaluation write-up
-- [ ] 8.6 Security/cleanup pass + tag `v1.0.0`
+- [x] 8.1 Sample data + first-run onboarding
+- [x] 8.2 Design system applied + a11y/responsive pass
+- [x] 8.3 Start scripts, README, user guide (optional Docker Compose)
+- [x] 8.4 Backup and restore verified
+- [x] 8.5 Evaluation write-up
+- [x] 8.6 Security/cleanup pass + tag `v1.0.0`
+
+### Phase 9 — v1.1: Reference zones and priority (owner request 2026-09-21)
+- [x] 9.1 Reference layers: upload GeoJSON boundaries (wetland / water body / forest / CRZ / land-use / custom) with source + date + buffer; PostGIS zone context on every detection (inside %, distance); priority critical/high/elevated/normal; list filter + badge, detail card, map overlay, CSV/GeoJSON columns, PDF rows, alert line; admin **Zones** page; migration 0007; 2 integration tests (122 total)
+- [ ] 9.2 (optional) Bundled starter layers for Tamil Nadu (Ramsar/Reserve Forest boundaries once the owner obtains official files); OSM wetland extract shipped as `data/samples/pallikaranai_wetland_osm.geojson`
+- [ ] 9.3 (optional) "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
 
 ## 3. Decision Log
 
@@ -179,6 +184,9 @@ Record every meaningful decision here (append only).
 | D71 | 2026-09-20 | UI QA (design §14): 390 px pass — tables now scroll inside their column (`min-w-0` / `minmax(0,1fr)`), no page overflow on any screen; axe-core WCAG 2 A/AA + best-practice: 0 violations on 8 pages after fixing heading order (Card/EmptyState `h3`→`h2`), a focusable scroll region and a file-input label; keyboard tab order logical with visible focus; reduced-motion honoured globally in `index.css`. Lighthouse itself not run (no Chrome DevTools in sandbox) — axe is the equivalent check | 06-plan 8.2 | — |
 | D72 | 2026-09-20 | Backup = `pg_dump -Fc` + `data/` without cache/derived folders; restore = `pg_restore --no-owner` (+`--clean` opt-in) + robocopy. Verified in sandbox: dump → empty PostGIS db → restore → 8 detections / 3 parcels / alembic 0006. `.env` deliberately excluded | 06-plan 8.4 | Supabase dashboard backups (paid tier only) |
 | D73 | 2026-09-20 | Release audit: git history grep for credential patterns → none (the Supabase password pasted in chat was never committed; still rotate); `pip-audit` → only `pip` itself (tooling, not a runtime dep); `npm audit` → 0; versions bumped to 1.0.0 (API, pyproject, package.json); tag `v1.0.0` | 06-plan 8.6 | — |
+| D74 | 2026-09-21 | **Zone context is computed on read, not stored.** `reference_features` (MultiPolygon, GiST) joined to detections with `ST_DWithin(geography, buffer_m)`; inside fraction = geodesic `ST_Intersection` area / detection area; strongest hit per layer. Uploading, buffering or deactivating a layer applies instantly to all past detections; no backfill job | Owner: "if we provide government data it should tell with much higher confidence" | Store hits at scan time (stale when layers change) |
+| D75 | 2026-09-21 | Priority ladder: **critical** = high confidence and ≥ 50 % inside a zone; **high** = high confidence touching/buffer, or medium ≥ 50 % inside; **elevated** = any other hit; **normal** = none. Priority never changes the detection's confidence or status — it is a triage order plus a citation (layer source + date) in UI, CSV/GeoJSON, PDF and e-mail. Wording stays "check first", never "illegal" (D45 family) | 03-appflow review order | Multiplying score (hides why) |
+| D76 | 2026-09-21 | Reference-layer uploads accept up to 5 000 polygons / 25 MB (`LARGE_BODY_PATHS` in hardening); other routes keep 6 MiB. Layers are admin-only to write, any user to read. Shapefile/KML conversion is left to QGIS/mapshaper (documented) rather than adding GDAL to the upload path | techspec §8 | Server-side shapefile parsing (pyshp + CRS handling) |
 | D16 | 2026-09-19 | Primary imagery: Microsoft Planetary Computer STAC (no account needed since June 2024, incl. Sentinel-1 RTC). Fallback: CDSE STAC v1 `https://stac.dataspace.copernicus.eu/v1` (free account for downloads) | Audit in §6 | CDSE as primary (needs token from day one) |
 
 ## 4. Open Questions
@@ -268,6 +276,7 @@ Also record precision separately for each confidence class (`high`, `medium`, `l
 | 2026-09-19 | 7.1–7.3 | `app/reports/{pdf,service}.py`, `app/alerts/{providers,service}.py`, `app/api/settings.py`; detections API: `POST …/report`, `POST …/alerts/{id}/retry`, alerts dispatched on confirm, detail now carries `reports[]` + `alerts[]`. Frontend: Report + Alerts cards on detection detail, real Alerts form on Settings (channel, recipients, min confidence, public URL, test message), dashboard step 04 live. 9 new tests (116 total); verified in headless Chromium + rendered PDF | Arena Agent |
 | 2026-09-19 | 7.3b | E-mail-only alerts: config defaults + `ALERT_RECIPIENTS`, first-run auto-enable when SMTP configured, Settings UI without Telegram, `.env.example` Gmail App Password instructions; test added (117 total) | Arena Agent |
 | 2026-09-20 | 8.1–8.6 | `seed.py --sample-scan`; `app/core/hardening.py` + generic 500 handler (+3 tests, 120 total); mobile/a11y fixes (D71); `scripts/{backup,restore}.ps1`; `docs/evaluation.md`; README rewritten (setup, guide, backup, security, limitations); versions 1.0.0; tag `v1.0.0` | Arena Agent |
+| 2026-09-21 | 9.1 | Reference layers + zone priority end-to-end (backend, UI, PDF, alerts, exports); migration 0007; tested against a real OSM Pallikaranai wetland extract (16 polygons); backend 122 tests; v1.1.0 | Arena Agent |
 | 2026-09-19 | 1.1 | Owner traced 3 parcels at geojson.io from Esri Wayback comparison; validated with shapely/pyproj; `data/samples/{parcels.geojson,windows.json,README.md}` (gitignored — owner keeps copy in OneDrive workspace) | Shrestha + Arena Agent |
 
 ## 10. Session Handoff Notes
@@ -280,6 +289,7 @@ Also record precision separately for each confidence class (`high`, `medium`, `l
 - **Done (2026-09-19, Arena Agent, later session):** Phase 6 complete — every screen in appflow §2 exists and was clicked through in headless Chromium against a real `local_folder` scan (8 detections, confirm flow, schedule create). Gotchas: MapLibre CSS overrides Tailwind `absolute` on its container (D61); `optimizeDeps.exclude: ['maplibre-gl']` is required with Vite 8. Sandbox env (venv, PG, node_modules) resets between sessions — re-provision before trusting servers.
 - **Done (2026-09-19, Arena Agent):** Phase 7 complete. Telegram and SMTP code paths are unit-tested with mocks only — **needs manual check** with a real bot token / mailbox (owner). Console provider verified live.
 - **Owner to do for e-mail alerts:** Google Account → Security → 2-Step Verification → App passwords → create; put `SMTP_PASSWORD=<16 chars>` (+ the other SMTP_* lines from `.env.example`) in `backend\.env`, restart uvicorn, open Settings → Alerts shows ON → **Send test**.
+- **Done (2026-09-21, Arena Agent):** Phase 9.1 shipped, tag `v1.1.0`. Owner: `git pull`, `.\scripts\db-migrate.ps1` (adds 0007), then **Zones → Add layer** with `data\samples\pallikaranai_wetland_osm.geojson` or an official boundary. Note: the OSM wetland outline sits ~0.8–1.6 km from the three sample parcels, so with buffer 0 nothing is flagged — that is correct, not a bug.
 - **Done (2026-09-20, Arena Agent):** Phase 8 complete, `v1.0.0` tagged. Items marked `[~]` in §8 need the owner's hands (clean-machine install, a scheduled run overnight, opening exports in QGIS/Excel).
 - **Next (optional, Phase 9 / v1.1):** more evaluation labels in other landscapes; “previously reviewed” badge (Flow F, schema ready); AOI-local cloud % before download (D26); ML variant per techspec §10; Docker Compose if ever deployed off-laptop.
 - **Old — Next:** Phase 8 — 8.1 hardening (security headers, request size limits, login throttle review, dependency audit), 8.2 UI QA pass per design §14 (390 px width, keyboard, reduced motion), 8.3 README/runbook, release checklist §8. (Old Phase 7 plan: 7.1 `GET /detections/{id}/report.pdf` (reportlab: map snapshot, before/after, metrics, history, disclaimer) + button on detail page; 7.2 `alert_settings` API + senders (console always, Telegram/SMTP optional via env) fired on confirm of high-confidence; 7.3 replace the informational Alerts card on Settings with the real form. (Old Phase 6 plan: 6.2 layout/navigation (dashboard, parcels, scans, detections, settings routes per appflow §2), 6.3 parcels pages (upload + draw), 6.4 scan form + detail, 6.5 detections split view with filters, 6.6 detail page (before/after slider), 6.7 dashboard, 6.8 schedules/users/alerts pages. Backend for 6.8 alerts settings (`/settings/alerts`) does not exist yet (Phase 7.2). (Old 5.1 plan: `GET /detections` (scan/parcel/confidence/status/date/bbox filters, pagination, GeoJSON) + `GET /detections/{id}` (metrics, evidence URLs, history, parcel); 5.2 `PATCH /detections/{id}/status` with transitions + audit rows (repo `set_status` exists); 5.3 protected `/files/...` route serving `data/evidence`; 5.4 export GeoJSON/CSV; then delete `PrototypeStore`/`api/prototype.py`/`test_prototype_api.py` and point `frontend/src/api/prototype.ts` (rename to `detections.ts`) at the new shapes (UUID ids, evidence). (Old 4.1 plan: scans API, worker, runner. (Old 3.1 plan: auth JWT, login throttle, me, change-password, role dependency; users admin API; parcels API. (Old 2.1 plan: SQLAlchemy models per `05-schema.md` (users, parcels, scans, scan_scenes, detections, detection_status_history, schedules, alert_settings) + 2.2 Alembic migrations; then replace `PrototypeStore` reads with repositories (keep `run_scan` pipeline calls). Owner actions still open: push to GitHub; PostGIS check 0.3; CI 0.7; more labels for 1.10. (Old 1.11 plan: go/no-go: write the decision in tracker §3 (recommendation: **GO** for Phase 2 with the index+fusion baseline; ML variant stays optional per techspec) with the evidence list (control parcels 0 high/medium, 3/3 high real, sweep plateau) and the caveats (9 labels, small-house recall, Wayback date offset); update README status; then Phase 2.1 models. Owner actions still open: push to GitHub, PostGIS check 0.3, CI 0.7, optionally label 10–20 more sites to firm up 1.10. (Old 1.10 plan: labelled evaluation. (a) Owner labels each of the 8 detections in `docs/samples/detections.geojson` as real / not real / unsure using Wayback (nearest releases to early 2020 and early 2023; note the exact dates) and reports obvious missed new buildings in West-1. (b) Write `data/samples/labels.geojson` (owner) + `scripts/evaluate.py`: precision per class, recall vs. labelled misses, IoU-based matching (≥ 0.3), and a small threshold sweep (T_bui 0.10–0.25, T_sar 2.0–3.5, overlap 0.2–0.5) printing a table. (c) Record metrics in tracker; PRD target ≥ 80 % of `high` judged real. Do NOT tune before labels exist. (Old 1.9 plan: `fusion.py`: for each optical region compute `sar_overlap` = fraction of its pixels inside the (dilated 1 px) radar mask; class = high if ≥ 0.3 else medium; radar-only regions = low; score = 0.4·norm(dBUI, 0.15→0.6) + 0.3·norm(dσ, 0→6 dB) + 0.2·sar_overlap + 0.1·compactness (4πA/P²), clipped to [0,1]; tests with synthetic regions; `scripts/fuse.py` → `detections.geojson` with confidence + score. Also: `algorithm_version = 'idx-fusion-1.0.0'`. (Old 1.8 plan: `vectorize.py`: `mask_to_polygons(mask, grid)` via `rasterio.features.shapes`, closing+opening, min area 400 m² (in UTM), light `simplify(5 m)`, clip to each parcel with shapely (per-parcel `overlap_area_m2`), geodesic area via pyproj `Geod`, reproject to EPSG:4326, write `data/previews/detections_optical.geojson` + radar equivalent; tests on synthetic masks (one square → one polygon with exact area; sub-min-area speck dropped; polygon straddling two parcels → two clipped pieces). (Old 1.7 plan: `radar.py`: speckle filter (3×3 median on dB composites), `d_sigma_vv = VV_cur_db − VV_base_db` (and VH), `radar_change_mask(d_sigma > T_sar=2.5 dB)` with the same water exclusion and opening; preview; per-parcel table like 1.6. Note water in radar is dark and wind-roughened water can jump several dB → water exclusion matters here too. (Old 1.6 plan: `optical_change_mask(...)` in `optical.py` + water exclusion + optional median-centering + 3×3 opening; preview; measure per-parcel fractions again (target: Control-Builtup and Control-Marsh near 0 %, West-1 a few compact blobs). See D30. (Old: indices in `app/pipeline/optical.py`: `ndvi(nir, red)`, `ndbi(swir, nir)`, `bui = ndbi − ndvi`, safe division (NaN where denominator ≈ 0), synthetic tests with known answers (pure veg → NDVI≈+0.8, BUI negative; bare/built → NDVI≈0.1, BUI ≈ 0 to +0.3). Then compute them on the saved composites and preview BUI per period. (Old 1.4 notes: `scl_valid_mask` (drop SCL 0,1,3,8,9,10,11 per techspec step 4 — note SCL 1 saturated, 3 shadow, 8/9 cloud, 10 cirrus, 11 snow), apply the PB ≥ 04.00 −1000 offset (D24), per-period nanmedian composite over all scenes; S1 median in linear power then dB. Preview composites. Then 1.3's old plan: `read_bands` in `PlanetaryComputerSource` via rasterio windowed reads of signed COG hrefs (S2 B04/B08/B11/SCL → 10 m UTM grid, B11 20→10 m nearest/bilinear, SCL nearest; S1 vv/vh linear power), file cache under `data/cache/` keyed by scene id + bbox + band. Write a `LocalFolderSource` stub only if needed for tests.

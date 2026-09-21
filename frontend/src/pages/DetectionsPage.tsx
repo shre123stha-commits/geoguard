@@ -20,6 +20,7 @@ import {
   ErrorState,
   Input,
   PageHeader,
+  PriorityChip,
   Select,
   Skeleton,
   StatusChip,
@@ -27,10 +28,19 @@ import {
 } from '@/components/ui';
 import { rowCls } from '@/lib/styles';
 import { useToast } from '@/components/useToast';
+import { loadActiveZones } from '@/api/reference';
 import { fmtArea, fmtDate } from '@/lib/format';
 import { bboxOf } from '@/lib/geo';
 
-const KEYS = ['scan_id', 'parcel_id', 'confidence', 'status', 'date_from', 'date_to'] as const;
+const KEYS = [
+  'scan_id',
+  'parcel_id',
+  'confidence',
+  'status',
+  'date_from',
+  'date_to',
+  'in_zone',
+] as const;
 
 /** Split list/map with filters + export (appflow Flow D step 2, design §8). */
 export function DetectionsPage() {
@@ -57,6 +67,7 @@ export function DetectionsPage() {
     queryFn: () => getDetections(filters, 500),
   });
   const parcels = useQuery({ queryKey: ['parcels'], queryFn: () => listParcels() });
+  const zones = useQuery({ queryKey: ['zones'], queryFn: loadActiveZones, staleTime: 60_000 });
   const scans = useQuery({
     queryKey: ['scans', 1, 50, 'succeeded'],
     queryFn: () => listScans(1, 50, 'succeeded'),
@@ -116,7 +127,7 @@ export function DetectionsPage() {
           </>
         }
       />
-      <div className="mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-7">
         <Select
           value={filters.scan_id ?? ''}
           onChange={(e) => set('scan_id', e.target.value)}
@@ -170,6 +181,16 @@ export function DetectionsPage() {
               {s.replace('_', ' ')}
             </option>
           ))}
+        </Select>
+        <Select
+          value={filters.in_zone ?? ''}
+          onChange={(e) => set('in_zone', e.target.value)}
+          aria-label="Reference zone"
+          className="h-9 text-[13px]"
+        >
+          <option value="">Any zone context</option>
+          <option value="true">Inside / near a reference zone</option>
+          <option value="false">Outside reference zones</option>
         </Select>
         <Input
           type="date"
@@ -241,8 +262,18 @@ export function DetectionsPage() {
                           <span className="ml-2 font-mono text-[11px] text-soft">
                             {p.score.toFixed(2)}
                           </span>
+                          {p.zone && p.zone.priority !== 'normal' && (
+                            <PriorityChip priority={p.zone.priority} className="ml-2" />
+                          )}
                         </td>
-                        <td className="max-w-[160px] truncate">{p.parcel_name}</td>
+                        <td className="max-w-[160px] truncate">
+                          {p.parcel_name}
+                          {p.zone && p.zone.hits.length > 0 && (
+                            <span className="block truncate font-mono text-[11px] text-soft">
+                              {p.zone.summary}
+                            </span>
+                          )}
+                        </td>
                         <td className="text-right font-mono text-[13px]">{fmtArea(p.area_m2)}</td>
                         <td className="font-mono text-[11px] text-soft">
                           {p.sources.map((s) => (s === 'optical' ? 'OPT' : 'SAR')).join('+')}
@@ -264,6 +295,7 @@ export function DetectionsPage() {
             className="h-full min-h-[520px]"
             parcels={parcels.data ?? null}
             detections={dets.data ?? null}
+            zones={zones.data ?? null}
             hoverDetection={hover}
             onDetectionClick={(id) => nav(`/detections/${id}`)}
             fitTo={bbox ?? parcelBbox}

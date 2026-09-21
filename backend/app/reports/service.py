@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Detection, Report, User
 from app.reports.pdf import ReportData, build_report
+from app.repositories.reference import ReferenceRepository, ZoneHit
 from app.repositories.users import UserRepository
+from app.services.zones import describe, zone_context
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,11 @@ def generate_report(db: Session, data_dir: Path, d: Detection, user: User) -> Re
     c = to_shape(d.centroid)
     names = UserRepository(db).names_for([h.changed_by for h in d.history if h.changed_by])
     sources = [s for s, on in (("optical", d.optical_detected), ("radar", d.radar_detected)) if on]
+    hits = ReferenceRepository(db).zone_hits(d)
+    zc = zone_context(d.confidence, hits)
     data = ReportData(
+        priority=zc.priority,
+        zone_lines=[_zone_line(h) for h in hits],
         detection_id=str(d.id),
         parcel_name=d.parcel.name,
         parcel_category=d.parcel.category,
@@ -69,3 +75,10 @@ def generate_report(db: Session, data_dir: Path, d: Detection, user: User) -> Re
         extra={"detection_id": str(d.id), "user_id": str(user.id), "step": "report"},
     )
     return rep
+
+
+def _zone_line(h: ZoneHit) -> str:
+    src = f" — source: {h.source}" if h.source else ""
+    if h.source and h.source_date:
+        src += f", {h.source_date.isoformat()}"
+    return describe(h) + src

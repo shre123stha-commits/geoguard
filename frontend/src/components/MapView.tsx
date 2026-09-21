@@ -37,6 +37,8 @@ export interface MapViewProps {
   /** Receives the map once loaded (draw tools etc.). */
   onReady?: (map: maplibregl.Map) => void;
   legend?: boolean;
+  /** Reference zones (Phase 9) drawn as a hatched cream outline under the parcels. */
+  zones?: FeatureCollection | null;
 }
 
 export function MapView({
@@ -53,6 +55,7 @@ export function MapView({
   className,
   onReady,
   legend,
+  zones,
 }: MapViewProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -88,6 +91,24 @@ export function MapView({
       map.addSource('parcels', { type: 'geojson', promoteId: 'id', data: EMPTY });
       map.addSource('detections', { type: 'geojson', promoteId: 'id', data: EMPTY });
       map.addSource('outline', { type: 'geojson', data: EMPTY });
+      map.addSource('zones', { type: 'geojson', data: EMPTY });
+      map.addLayer({
+        id: 'zone-fill',
+        type: 'fill',
+        source: 'zones',
+        paint: { 'fill-color': '#f3efe6', 'fill-opacity': 0.05 },
+      });
+      map.addLayer({
+        id: 'zone-line',
+        type: 'line',
+        source: 'zones',
+        paint: {
+          'line-color': '#f3efe6',
+          'line-width': 1.2,
+          'line-opacity': 0.6,
+          'line-dasharray': [1, 1.5],
+        },
+      });
       map.addLayer({
         id: 'parcel-fill',
         type: 'fill',
@@ -182,7 +203,7 @@ export function MapView({
     });
     map.addLayer(
       { id: 'base', type: 'raster', source: 'base', paint: { ...b.paint } },
-      'parcel-fill',
+      'zone-fill',
     );
   }, [basemap, ready]);
 
@@ -196,6 +217,11 @@ export function MapView({
     if (!map || !ready) return;
     (map.getSource('detections') as maplibregl.GeoJSONSource).setData(detections ?? EMPTY);
   }, [detections, ready]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    (map.getSource('zones') as maplibregl.GeoJSONSource).setData(zones ?? EMPTY);
+  }, [zones, ready]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
@@ -273,6 +299,12 @@ export function MapView({
             <span className="inline-block h-2.5 w-2.5 border border-cream/80" />
             <span className="uppercase tracking-[0.08em] text-soft">parcel</span>
           </div>
+          {zones && zones.features.length > 0 && (
+            <div className="flex items-center gap-2 py-0.5">
+              <span className="inline-block h-2.5 w-2.5 border border-dotted border-cream/60" />
+              <span className="uppercase tracking-[0.08em] text-soft">reference zone</span>
+            </div>
+          )}
         </div>
       )}
     </div>

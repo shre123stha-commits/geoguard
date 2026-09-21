@@ -15,6 +15,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from app.api.errors import error_body
 
 DEFAULT_MAX_BODY = 6 * 1024 * 1024
+# Reference-layer uploads (government boundary files) are legitimately larger (Phase 9).
+LARGE_BODY_PATHS = ("/api/v1/reference-layers",)
+LARGE_MAX_BODY = 25 * 1024 * 1024
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -44,8 +47,11 @@ class BodySizeLimitMiddleware:
             return
         headers = dict(scope.get("headers") or [])
         declared = headers.get(b"content-length")
-        if declared is not None and declared.isdigit() and int(declared) > self.max_bytes:
-            await self._reject(scope, receive, send)
+        limit = self.max_bytes
+        if any(scope.get("path", "").startswith(p) for p in LARGE_BODY_PATHS):
+            limit = max(limit, LARGE_MAX_BODY)
+        if declared is not None and declared.isdigit() and int(declared) > limit:
+            await self._reject(scope, receive, send, limit)
             return
         received = 0
         too_large = False
@@ -55,7 +61,7 @@ class BodySizeLimitMiddleware:
             msg = await receive()
             if msg["type"] == "http.request":
                 received += len(msg.get("body", b""))
-                if received > self.max_bytes:
+                if received > limit:
                     too_large = True
                     # stop feeding the app; it will see an empty end-of-body
                     return {"type": "http.request", "body": b"", "more_body": False}
@@ -68,12 +74,12 @@ class BodySizeLimitMiddleware:
 
         await self.app(scope, limited_receive, guarded_send)
 
-    async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
+    async def _reject(self, scope: Scope, receive: Receive, send: Send, limit: int) -> None:
         resp = JSONResponse(
             status_code=413,
             content=error_body(
                 "payload_too_large",
-                f"Request body exceeds {self.max_bytes // (1024 * 1024)} MB",
+                f"Request body exceeds {limit // (1024 * 1024)} MB",
             ),
         )
         await resp(scope, receive, send)

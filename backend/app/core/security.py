@@ -16,12 +16,12 @@ _ph = PasswordHasher()
 def hash_password(plain: str) -> str:
     if len(plain) < MIN_PASSWORD_LENGTH:
         raise ValueError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
-    return _ph.hash(plain)
+    return str(_ph.hash(plain))
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return _ph.verify(hashed, plain)
+        return bool(_ph.verify(hashed, plain))
     except VerifyMismatchError:
         return False
 
@@ -44,7 +44,7 @@ def create_access_token(
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=expires_minutes)).timestamp()),
     }
-    return jwt.encode(payload, secret, algorithm=JWT_ALGORITHM)
+    return str(jwt.encode(payload, secret, algorithm=JWT_ALGORITHM))
 
 
 def decode_access_token(token: str, secret: str) -> dict[str, Any]:

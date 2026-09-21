@@ -63,6 +63,7 @@ class DetectionRepository:
         bbox: tuple[float, float, float, float] | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
+        in_zone: bool | None = None,
     ) -> Select[tuple[Detection]]:
         # Default sort per appflow Flow D: confidence desc, area desc (newest scan first).
         conf_rank = case(
@@ -88,6 +89,11 @@ class DetectionRepository:
         if bbox:
             env = func.ST_MakeEnvelope(*bbox, 4326)
             q = q.where(Detection.geom.op("&&")(env))
+        if in_zone is not None:
+            from app.repositories.reference import ReferenceRepository
+
+            sub = ReferenceRepository(self.db).detection_ids_in_zones()
+            q = q.where(Detection.id.in_(sub) if in_zone else Detection.id.not_in(sub))
         return q
 
     def list_all(self, limit: int = 500, offset: int = 0, **filters: Any) -> list[Detection]:

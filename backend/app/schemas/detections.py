@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.enums import ConfidenceClass, DetectionStatus, EvidenceKind
+from app.schemas.reference import ZoneContextOut
 
 DISCLAIMER = (
     "Satellite detection is a screening aid. Minimum reliable detection size is about 400 m² "
@@ -66,6 +67,7 @@ class DetectionProps(BaseModel):
     matches_detection: uuid.UUID | None
     created_at: datetime
     centroid: list[float]  # [lon, lat]
+    zone: ZoneContextOut | None = None  # Phase 9: priority + reference-zone hits
 
 
 class DetectionFeature(BaseModel):

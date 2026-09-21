@@ -19,7 +19,7 @@ basemap tiles, Gmail App Password for alerts. See `docs/` for the full specifica
 
 ## Status
 
-**v1.0.0** — Phases 0–8 complete. Everything below has been exercised end to end on the
+**v1.1.0** — Phases 0–9 complete (v1.1 adds reference zones and priority). Everything below has been exercised end to end on the
 sample area. Known limits are listed at the bottom of this file and inside the app.
 
 ## Stack
@@ -140,6 +140,7 @@ Every confirmed `high` detection then e-mails the recipients (threshold adjustab
 | Review | **Detections** | Sorted by confidence then size. Open a row: satellite map with the outline, before/after slider, change map, measurements. **Confirm**, **Plan field visit**, or **Dismiss** with a reason. Every change is in the history. |
 | Report | Detection page → **Generate report** | One-page PDF with evidence, measurements, history and the disclaimer. |
 | Export | **Detections → GeoJSON / CSV** | Honours the current filters. GeoJSON opens in QGIS; CSV (with WKT) opens in Excel. |
+| Reference zones | **Zones** (admin) | Upload boundaries where building is not expected (wetland, lake bed, reserve forest, CRZ, master-plan zone) as GeoJSON with a source and date; optional buffer. Every detection then shows a **priority** (critical / high / elevated / normal) and how far inside or near the zone it is — in the list, detail page, CSV/GeoJSON, PDF and e-mail. Filter the list with *Inside / near a reference zone*. Convert shapefiles/KML with QGIS (Export → GeoJSON, CRS EPSG:4326) or mapshaper.org. A starter file is in `data\samples\pallikaranai_wetland_osm.geojson` (OpenStreetMap wetland outlines). |
 | Recurring scans | **Schedules** (admin) | Weekly / monthly / cron; baseline = same season last year by default. Missed runs are skipped, not replayed. |
 | Users | **Users** (admin) | Admins manage everything; officers review. Temporary passwords must be changed at first sign-in. |
 
@@ -189,6 +190,9 @@ fixed subfolders, opaque 500 responses, no secrets in the repository (`.env` is 
 6. **Dependencies.** Imagery comes from public catalogues whose terms and uptime can change;
    basemap tiles are third-party; a Supabase free project pauses when idle.
 7. **Compute.** Runs on a laptop; one scan at a time. Very large AOIs (> ~50 km²) will be slow.
+8. **Zone context is only as good as the boundary file.** Public boundaries can be outdated or
+   offset by tens of metres, and permissions/exemptions are unknown to the tool. A zone hit
+   means "check this first"; it is never a statement that something is unauthorised.
 
 ## Repository layout
 

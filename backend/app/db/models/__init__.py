@@ -352,6 +352,56 @@ class ScheduleParcel(Base):
     )
 
 
+# Phase 9 — reference layers (protected / restricted zones used for zone context)
+REFERENCE_KINDS = ("wetland", "water_body", "forest", "coastal", "land_use", "custom")
+
+
+class ReferenceLayer(Base):
+    __tablename__ = "reference_layers"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('wetland','water_body','forest','coastal','land_use','custom')",
+            name="reference_layers_kind_check",
+        ),
+        CheckConstraint("buffer_m BETWEEN 0 AND 5000", name="reference_layers_buffer_check"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str | None] = mapped_column(Text)
+    source_date: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
+    buffer_m: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    feature_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    created_by: Mapped[uuid.UUID | None] = _uuid_fk("users.id", "SET NULL")
+    created_at: Mapped[datetime] = created_at_col()
+
+    features: Mapped[list["ReferenceFeature"]] = relationship(
+        back_populates="layer", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class ReferenceFeature(Base):
+    __tablename__ = "reference_features"
+    __table_args__ = (
+        CheckConstraint("ST_IsValid(geom)", name="reference_features_valid_geom"),
+        Index("idx_reference_features_geom", "geom", postgresql_using="gist"),
+        Index("idx_reference_features_layer", "layer_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    layer_id: Mapped[uuid.UUID] = _uuid_fk("reference_layers.id", "CASCADE", nullable=False)
+    name: Mapped[str | None] = mapped_column(Text)
+    props: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    geom: Mapped[Any] = mapped_column(
+        Geometry("MULTIPOLYGON", srid=4326, spatial_index=False), nullable=False
+    )
+
+    layer: Mapped[ReferenceLayer] = relationship(back_populates="features")
+
+
 __all__ = [
     "Alert",
     "AppSetting",
@@ -360,6 +410,8 @@ __all__ = [
     "DetectionStatusHistory",
     "EvidenceFile",
     "Parcel",
+    "ReferenceFeature",
+    "ReferenceLayer",
     "Report",
     "Scan",
     "ScanParcel",
