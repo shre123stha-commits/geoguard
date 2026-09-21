@@ -23,6 +23,7 @@ erDiagram
     users ||--o{ scan_schedules : owns
     scan_schedules ||--o{ scans : triggers
     scan_schedules ||--o{ schedule_parcels : covers
+    reference_layers ||--o{ reference_features : contains
     parcels ||--o{ schedule_parcels : covered_by
 ```
 
@@ -316,3 +317,25 @@ data/
 ```
 
 Paths in the database are always **relative to `DATA_DIR`**.
+
+
+### 4.13 `reference_layers` and `reference_features` (Phase 9, migration 0007)
+
+Protected / restricted boundaries supplied by the owner (wetland, water_body, forest, coastal, land_use, custom). Used only to compute **zone context** for detections at read time (decision D74); nothing is written back to `detections`.
+
+| Column | Type | Notes |
+|---|---|---|
+| reference_layers.id | uuid pk | |
+| name, kind | text | kind CHECK in the six values above |
+| source, source_date, notes | text / date / text | cited in UI, PDF, e-mail |
+| buffer_m | int 0–5000 | also flag detections within this distance |
+| is_active | bool | inactive layers are ignored everywhere |
+| feature_count | int | maintained on insert |
+| created_by, created_at | | |
+| reference_features.id | uuid pk | |
+| layer_id | fk → reference_layers ON DELETE CASCADE | |
+| name | text | best-effort from properties (name/NAME/title/…) |
+| props | jsonb | scalar properties only |
+| geom | geometry(MultiPolygon, 4326), GiST, ST_IsValid | |
+
+Zone query (per detection): `ST_DWithin(det.geom::geography, feat.geom::geography, layer.buffer_m)`; inside fraction = `ST_Area(ST_Intersection(...)::geography) / ST_Area(det.geom::geography)`; distance = `ST_Distance(::geography)`.

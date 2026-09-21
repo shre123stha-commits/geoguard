@@ -92,14 +92,16 @@ def provider_ready(name: str, env: Settings) -> str | None:
     return None
 
 
-def compose(d: Detection, base_url: str) -> AlertMessage:
+def compose(d: Detection, base_url: str, zone_summary: str | None = None) -> AlertMessage:
     c = to_shape(d.centroid)
     link = f"{base_url}/detections/{d.id}" if base_url else None
+    zone_line = f"Zone context: {zone_summary}\n" if zone_summary else ""
     return AlertMessage(
         subject=f"GeoGuard-EO: {d.confidence.value} confidence change confirmed in {d.parcel.name}",
         text=(
             f"About {d.area_m2:,.0f} m² of likely new built-up surface was confirmed.\n"
             f"Parcel: {d.parcel.name}\n"
+            f"{zone_line}"
             f"Location: {c.y:.5f}, {c.x:.5f}\n"
             f"Detection: {d.id}\n"
             "Screening result — verify on the ground before acting."
@@ -108,10 +110,23 @@ def compose(d: Detection, base_url: str) -> AlertMessage:
     )
 
 
-def _deliver(alert: Alert, d: Detection, cfg: AlertSettings, env: Settings) -> None:
+def _zone_summary(db: Session, d: Detection) -> str | None:
+    from app.repositories.reference import ReferenceRepository
+    from app.services.zones import zone_context
+
+    hits = ReferenceRepository(db).zone_hits(d)
+    if not hits:
+        return None
+    zc = zone_context(d.confidence, hits)
+    return f"{zc.summary} — priority {zc.priority}"
+
+
+def _deliver(
+    alert: Alert, d: Detection, cfg: AlertSettings, env: Settings, zone: str | None = None
+) -> None:
     alert.attempts += 1
     try:
-        build_provider(alert.provider, env).send(alert.recipient, compose(d, cfg.app_url))
+        build_provider(alert.provider, env).send(alert.recipient, compose(d, cfg.app_url, zone))
     except AlertError as exc:
         alert.status = AlertStatus.failed
         alert.last_error = str(exc)[:500]
@@ -128,6 +143,7 @@ def dispatch_for_confirmation(db: Session, env: Settings, d: Detection) -> list[
     if not cfg.enabled or _RANK[d.confidence] < _RANK[cfg.min_confidence]:
         return []
     recipients = cfg.recipients or (["log"] if cfg.provider == "console" else [])
+    zone = _zone_summary(db, d)
     out = []
     for r in recipients:
         a = Alert(
@@ -140,7 +156,7 @@ def dispatch_for_confirmation(db: Session, env: Settings, d: Detection) -> list[
             attempts=0,
         )
         db.add(a)
-        _deliver(a, d, cfg, env)
+        _deliver(a, d, cfg, env, zone)
         out.append(a)
     db.flush()
     return out
@@ -151,7 +167,7 @@ def retry(db: Session, env: Settings, d: Detection, alert: Alert) -> Alert:
         raise ValueError("alert was already sent")
     if alert.attempts >= MAX_ATTEMPTS:
         raise ValueError(f"gave up after {MAX_ATTEMPTS} attempts")
-    _deliver(alert, d, load_settings(db, env), env)
+    _deliver(alert, d, load_settings(db, env), env, _zone_summary(db, d))
     db.flush()
     return alert
 

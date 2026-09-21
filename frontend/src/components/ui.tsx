@@ -226,6 +226,24 @@ export function Chip({
   );
 }
 
+/** Zone-context priority (Phase 9). Solid marker for critical, hollow for high, dot for elevated. */
+export function PriorityChip({ priority, className }: { priority: string; className?: string }) {
+  if (priority === 'normal') return null;
+  const mark = priority === 'critical' ? '◆' : priority === 'high' ? '◇' : '·';
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1 rounded-full border border-hair-strong px-2 py-px font-mono text-[11px] uppercase tracking-[0.08em] text-cream',
+        className,
+      )}
+      title="Priority from reference-zone context"
+    >
+      <span aria-hidden>{mark}</span>
+      {priority}
+    </span>
+  );
+}
+
 export function StatusChip({ status }: { status: string }) {
   const tone =
     status === 'succeeded' || status === 'confirmed'

@@ -14,6 +14,7 @@ import {
   type ReasonCode,
 } from '@/api/detections';
 import { getParcel } from '@/api/parcels';
+import { loadActiveZones } from '@/api/reference';
 import { BeforeAfter } from '@/components/BeforeAfter';
 import { MapView } from '@/components/MapView';
 import {
@@ -23,6 +24,7 @@ import {
   ErrorState,
   Field,
   PageHeader,
+  PriorityChip,
   Select,
   Skeleton,
   StatusChip,
@@ -51,6 +53,7 @@ export function DetectionDetailPage() {
     queryFn: () => getParcel(det.data!.parcel.id),
     enabled: Boolean(det.data),
   });
+  const zones = useQuery({ queryKey: ['zones'], queryFn: loadActiveZones, staleTime: 60_000 });
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<ReasonCode>('bare_soil');
   const [pending, setPending] = useState<DetectionStatus | null>(null);
@@ -158,6 +161,7 @@ export function DetectionDetailPage() {
                 <Chip>previously flagged →</Chip>
               </Link>
             )}
+            {p.zone && <PriorityChip priority={p.zone.priority} />}
           </span>
         }
       />
@@ -171,6 +175,7 @@ export function DetectionDetailPage() {
                   parcel.data ? { type: 'FeatureCollection', features: [parcel.data] } : null
                 }
                 detections={fc}
+                zones={zones.data ?? null}
                 selectedDetection={d.id}
                 fitTo={bbox}
                 fitKey={id}
@@ -303,6 +308,31 @@ export function DetectionDetailPage() {
         </div>
 
         <div className="space-y-6">
+          {p.zone && p.zone.hits.length > 0 && (
+            <Card title="Zone context">
+              <p className="mb-3 text-[14px]">
+                Priority <span className="font-mono uppercase">{p.zone.priority}</span> — this
+                footprint {p.zone.hits[0].relation === 'within_buffer' ? 'is close to' : 'overlaps'}{' '}
+                a reference boundary. Check this one first.
+              </p>
+              <ul className="space-y-2 text-[14px]">
+                {p.zone.hits.map((h) => (
+                  <li key={h.layer_id} className="border-t border-hair pt-2">
+                    <div>{h.text}</div>
+                    <div className="font-mono text-[11px] text-soft">
+                      {h.kind.replace('_', ' ')}
+                      {h.source ? ` · source: ${h.source}` : ''}
+                      {h.source_date ? ` · ${h.source_date}` : ''}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[12px] text-soft">
+                Boundaries can be outdated or offset by tens of metres; permissions are not known to
+                this tool. A zone hit is a reason to check, not a finding.
+              </p>
+            </Card>
+          )}
           <Card title="Metrics">
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-[14px] tabular-nums">
               <Row k="area" v={`${Math.round(p.area_m2).toLocaleString()} m²`} />

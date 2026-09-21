@@ -23,6 +23,7 @@ from app.db.models import Alert, Detection, Report, User
 from app.reports.service import generate_report
 from app.repositories import DetectionRepository, UserRepository
 from app.repositories.base import from_db
+from app.repositories.reference import ReferenceRepository, ZoneHit
 from app.schemas.detections import (
     ADMIN_ONLY_TRANSITIONS,
     TRANSITIONS,
@@ -38,6 +39,8 @@ from app.schemas.detections import (
     ScanSummary,
     StatusChange,
 )
+from app.schemas.reference import ZoneContextOut, ZoneHitOut
+from app.services.zones import describe, zone_context
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 logger = logging.getLogger(__name__)
@@ -61,8 +64,10 @@ class Filters:
         date_from: date | None = None,
         date_to: date | None = None,
         bbox: Annotated[str | None, Query(description="minLon,minLat,maxLon,maxLat")] = None,
+        in_zone: bool | None = None,
     ) -> None:
         self.kwargs: dict[str, Any] = {
+            "in_zone": in_zone,
             "scan_id": scan_id,
             "parcel_id": parcel_id,
             "confidence": confidence,
@@ -101,9 +106,34 @@ def _sources(d: Detection) -> list[str]:
     return out
 
 
-def _props(d: Detection) -> DetectionProps:
+def _zone(d: Detection, hits: list[ZoneHit]) -> ZoneContextOut:
+    ctx = zone_context(d.confidence, hits)
+    return ZoneContextOut(
+        priority=ctx.priority,
+        summary=ctx.summary,
+        hits=[
+            ZoneHitOut(
+                layer_id=h.layer_id,
+                layer_name=h.layer_name,
+                kind=h.kind,
+                feature_name=h.feature_name,
+                relation=h.relation,
+                inside_pct=round(h.inside_fraction * 100),
+                distance_m=round(h.distance_m),
+                buffer_m=h.buffer_m,
+                source=h.source,
+                source_date=h.source_date,
+                text=describe(h),
+            )
+            for h in hits
+        ],
+    )
+
+
+def _props(d: Detection, hits: list[ZoneHit] | None = None) -> DetectionProps:
     c = to_shape(d.centroid)
     return DetectionProps(
+        zone=_zone(d, hits) if hits is not None else None,
         id=d.id,
         scan_id=d.scan_id,
         parcel_id=d.parcel_id,
@@ -127,8 +157,13 @@ def _props(d: Detection) -> DetectionProps:
     )
 
 
-def _feature(d: Detection) -> DetectionFeature:
-    return DetectionFeature(id=d.id, geometry=from_db(d.geom) or {}, properties=_props(d))
+def _feature(d: Detection, hits: list[ZoneHit] | None = None) -> DetectionFeature:
+    return DetectionFeature(id=d.id, geometry=from_db(d.geom) or {}, properties=_props(d, hits))
+
+
+def _with_zones(db: DbDep, rows: list[Detection]) -> list[DetectionFeature]:
+    zones = ReferenceRepository(db).zone_hits_bulk([d.id for d in rows])
+    return [_feature(d, zones.get(d.id, [])) for d in rows]
 
 
 def allowed_transitions(d: Detection, user: User) -> list[DetectionStatus]:
@@ -170,7 +205,7 @@ def _detail(d: Detection, db: DbDep, user: User) -> DetectionDetail:
     return DetectionDetail(
         id=d.id,
         geometry=from_db(d.geom) or {},
-        properties=_props(d),
+        properties=_props(d, ReferenceRepository(db).zone_hits(d)),
         parcel={
             "id": str(d.parcel.id),
             "name": d.parcel.name,
@@ -218,11 +253,12 @@ def list_detections(
     date_from: date | None = None,
     date_to: date | None = None,
     bbox: Annotated[str | None, Query()] = None,
+    in_zone: bool | None = None,
 ) -> DetectionFeatureCollection:
-    f = Filters(scan_id, parcel_id, confidence, status, date_from, date_to, bbox)
+    f = Filters(scan_id, parcel_id, confidence, status, date_from, date_to, bbox, in_zone)
     rows, total = DetectionRepository(db).list_page((page - 1) * page_size, page_size, **f.kwargs)
     return DetectionFeatureCollection(
-        features=[_feature(d) for d in rows], total=total, page=page, page_size=page_size
+        features=_with_zones(db, rows), total=total, page=page, page_size=page_size
     )
 
 
@@ -243,21 +279,43 @@ CSV_COLUMNS = [
     "status_note",
     "reviewed_at",
     "created_at",
+    "priority",
+    "zone_context",
     "lon",
     "lat",
     "wkt",
 ]
 
 
-def _csv_rows(rows: Iterator[Detection]) -> Iterator[str]:
+def _zone_rows(
+    db: DbDep, rows: Iterator[Detection], batch: int = 200
+) -> Iterator[DetectionFeature]:
+    """Attach zone context in batches while streaming."""
+    repo = ReferenceRepository(db)
+    chunk: list[Detection] = []
+    for d in rows:
+        chunk.append(d)
+        if len(chunk) >= batch:
+            zones = repo.zone_hits_bulk([x.id for x in chunk])
+            yield from (_feature(x, zones.get(x.id, [])) for x in chunk)
+            chunk = []
+    if chunk:
+        zones = repo.zone_hits_bulk([x.id for x in chunk])
+        yield from (_feature(x, zones.get(x.id, [])) for x in chunk)
+
+
+def _csv_rows(
+    feats: Iterator[DetectionFeature], by_id: dict[uuid.UUID, Detection]
+) -> Iterator[str]:
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\r\n")  # Excel-friendly
     w.writerow(CSV_COLUMNS)
     yield "\ufeff" + buf.getvalue()  # UTF-8 BOM so Excel reads m² etc. correctly
-    for d in rows:
+    for feat in feats:
         buf.seek(0)
         buf.truncate()
-        p = _props(d)
+        p = feat.properties
+        d = by_id[feat.id]
         w.writerow(
             [
                 str(d.id),
@@ -276,6 +334,8 @@ def _csv_rows(rows: Iterator[Detection]) -> Iterator[str]:
                 d.status_note or "",
                 d.reviewed_at.isoformat() if d.reviewed_at else "",
                 d.created_at.isoformat(),
+                p.zone.priority if p.zone else "",
+                p.zone.summary if p.zone else "",
                 p.centroid[0],
                 p.centroid[1],
                 to_shape(d.geom).wkt,
@@ -288,15 +348,15 @@ def _num(v: float | None, nd: int) -> str:
     return "" if v is None else f"{v:.{nd}f}"
 
 
-def _geojson_chunks(rows: Iterator[Detection]) -> Iterator[str]:
+def _geojson_chunks(feats: Iterator[DetectionFeature]) -> Iterator[str]:
     yield (
         '{"type":"FeatureCollection","disclaimer":'
         + json.dumps(DetectionFeatureCollection.model_fields["disclaimer"].default)
         + ',"features":['
     )
     first = True
-    for d in rows:
-        feat = _feature(d).model_dump(mode="json")
+    for f in feats:
+        feat = f.model_dump(mode="json")
         yield ("" if first else ",") + json.dumps(feat, separators=(",", ":"))
         first = False
     yield "]}"
@@ -314,9 +374,10 @@ def export_detections(
     date_from: date | None = None,
     date_to: date | None = None,
     bbox: Annotated[str | None, Query()] = None,
+    in_zone: bool | None = None,
 ) -> StreamingResponse:
     """Filtered list as GeoJSON (QGIS) or CSV with WKT (Excel). Same filters as the list."""
-    f = Filters(scan_id, parcel_id, confidence, status, date_from, date_to, bbox)
+    f = Filters(scan_id, parcel_id, confidence, status, date_from, date_to, bbox, in_zone)
     repo = DetectionRepository(db)
     total = repo.count(**f.kwargs)
     if total > MAX_EXPORT_ROWS:
@@ -327,13 +388,16 @@ def export_detections(
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     rows = repo.iter_all(**f.kwargs)
     if format == "csv":
+        # Materialise (bounded by MAX_EXPORT_ROWS) so WKT can be read next to the feature.
+        dets = list(rows)
+        by_id = {d.id: d for d in dets}
         return StreamingResponse(
-            _csv_rows(rows),
+            _csv_rows(_zone_rows(db, iter(dets)), by_id),
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="detections-{stamp}.csv"'},
         )
     return StreamingResponse(
-        _geojson_chunks(rows),
+        _geojson_chunks(_zone_rows(db, rows)),
         media_type="application/geo+json",
         headers={"Content-Disposition": f'attachment; filename="detections-{stamp}.geojson"'},
     )

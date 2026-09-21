@@ -9,6 +9,7 @@ const NAV = [
   { to: '/scans', label: 'Scans' },
   { to: '/detections', label: 'Detections' },
   { to: '/schedules', label: 'Schedules', admin: true },
+  { to: '/reference-layers', label: 'Zones', admin: true },
   { to: '/users', label: 'Users', admin: true },
   { to: '/settings', label: 'Settings', admin: true },
 ];

@@ -90,6 +90,8 @@ class ReportData:
     evidence: dict[str, Path] = field(default_factory=dict)  # kind -> png path
     generated_by: str = ""
     app_url: str = ""
+    priority: str = "normal"  # Phase 9 zone context
+    zone_lines: list[str] = field(default_factory=list)  # "92 % inside X (source, date)"
 
 
 def _fmt(v: float | None, nd: int, unit: str = "") -> str:
@@ -164,6 +166,9 @@ def build_report(data: ReportData, generated_at: datetime) -> bytes:
         ["Detected", data.detected_at.strftime("%Y-%m-%d %H:%M UTC")],
         ["Algorithm", data.algorithm_version],
     ]
+    if data.zone_lines:
+        rows.insert(3, ["Priority", data.priority])
+        rows.insert(4, ["Zone context", "<br/>".join(data.zone_lines)])
     t = Table(
         [[Paragraph(a, small), Paragraph(b, body)] for a, b in rows],
         colWidths=[38 * mm, width - 38 * mm],

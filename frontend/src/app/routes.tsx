@@ -14,6 +14,7 @@ import { ScanDetailPage } from '@/pages/ScanDetailPage';
 import { ScanNewPage } from '@/pages/ScanNewPage';
 import { ScansPage } from '@/pages/ScansPage';
 import { SchedulesPage } from '@/pages/SchedulesPage';
+import { ReferenceLayersPage } from '@/pages/ReferenceLayersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { UsersPage } from '@/pages/UsersPage';
 
@@ -54,6 +55,7 @@ export function AppRoutes() {
           <Route path="/detections" element={<DetectionsPage />} />
           <Route path="/detections/:id" element={<DetectionDetailPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/reference-layers" element={<ReferenceLayersPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* the earlier single-screen review map now lives at /detections */}

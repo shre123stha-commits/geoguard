@@ -1,5 +1,6 @@
 import type { Geometry } from 'geojson';
 import { apiFetch, tokenStore } from './client';
+import type { ZoneContext } from './reference';
 
 export type Confidence = 'high' | 'medium' | 'low';
 export type DetectionStatus = 'new' | 'confirmed' | 'dismissed' | 'field_visit';
@@ -36,6 +37,7 @@ export interface DetectionProps {
   matches_detection: string | null;
   created_at: string;
   centroid: [number, number];
+  zone?: ZoneContext | null;
 }
 
 export interface FeatureCollection<P, Id = string> {
@@ -135,6 +137,7 @@ export interface DetectionFilters {
   date_from?: string;
   date_to?: string;
   bbox?: string;
+  in_zone?: 'true' | 'false';
 }
 
 const qs = (f: Record<string, string | number | undefined>) =>
