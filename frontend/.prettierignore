@@ -1,3 +1,6 @@
 dist
 coverage
 node_modules
+# generated data files
+public/samples/
+*.geojson
