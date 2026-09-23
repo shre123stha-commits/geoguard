@@ -17,6 +17,7 @@ from app.api.reference import router as reference_router
 from app.api.scans import router as scans_router
 from app.api.schedules import router as schedules_router
 from app.api.settings import router as settings_router
+from app.api.timeline import router as timeline_router
 from app.api.users import router as users_router
 from app.core.config import Settings, get_settings
 from app.core.hardening import BodySizeLimitMiddleware, SecurityHeadersMiddleware
@@ -111,6 +112,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(detections_router, prefix=API_PREFIX)
     app.include_router(files_router, prefix=API_PREFIX)
     app.include_router(settings_router, prefix=API_PREFIX)
+    app.include_router(timeline_router, prefix=API_PREFIX)
     return app
 
 

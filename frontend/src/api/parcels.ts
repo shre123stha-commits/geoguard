@@ -51,3 +51,36 @@ export const deleteParcel = (id: string, cascade = false) =>
   apiFetch<ParcelDeleteResult>(`parcels/${id}${cascade ? '?cascade=true' : ''}`, {
     method: 'DELETE',
   });
+
+// Phase 9.3 — per-parcel monthly timeline
+export interface TimelineMonth {
+  month: string; // YYYY-MM-01
+  built_frac: number | null;
+  ndvi_mean: number | null;
+  valid_frac: number | null;
+  n_scenes: number;
+}
+export interface TimelineJob {
+  status: 'running' | 'done' | 'failed';
+  progress: number;
+  message: string | null;
+  months_total: number;
+  months_done: number;
+  started_at: string;
+  finished_at: string | null;
+}
+export interface Timeline {
+  parcel_id: string;
+  t_bui: number;
+  months: TimelineMonth[];
+  onset_month: string | null;
+  job: TimelineJob | null;
+  running: boolean;
+  note: string;
+}
+export const getTimeline = (id: string) => apiFetch<Timeline>(`parcels/${id}/timeline`);
+export const startTimeline = (id: string, months = 36) =>
+  apiFetch<Timeline>(`parcels/${id}/timeline`, {
+    method: 'POST',
+    body: JSON.stringify({ months }),
+  });

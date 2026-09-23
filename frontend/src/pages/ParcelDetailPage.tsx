@@ -3,7 +3,15 @@ import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { getDetections } from '@/api/detections';
-import { CATEGORIES, deleteParcel, getParcel, patchParcel } from '@/api/parcels';
+import {
+  CATEGORIES,
+  deleteParcel,
+  getParcel,
+  getTimeline,
+  patchParcel,
+  startTimeline,
+} from '@/api/parcels';
+import { TimelineChart } from '@/components/TimelineChart';
 import { ApiRequestError } from '@/api/client';
 import { useAuth } from '@/app/useAuth';
 import { MapView } from '@/components/MapView';
@@ -159,6 +167,7 @@ export function ParcelDetailPage() {
               <p className="whitespace-pre-wrap text-[14px] text-soft">{p.notes}</p>
             </Card>
           )}
+          <TimelineCard id={id} canStart={user?.role === 'admin' || user?.role === 'officer'} />
           <Card
             title="Detection history"
             action={
@@ -254,5 +263,98 @@ export function ParcelDetailPage() {
         onClose={() => setConfirm(null)}
       />
     </>
+  );
+}
+
+function TimelineCard({ id, canStart }: { id: string; canStart: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({
+    queryKey: ['timeline', id],
+    queryFn: () => getTimeline(id),
+    refetchInterval: (query) => (query.state.data?.running ? 3000 : false),
+  });
+  const start = useMutation({
+    mutationFn: () => startTimeline(id, 36),
+    onSuccess: (t) => {
+      qc.setQueryData(['timeline', id], t);
+      toast('Timeline started — months appear as they are computed.');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+  const t = q.data;
+  const months = t?.months ?? [];
+  const clear = months.filter((m) => m.built_frac != null);
+  const first = clear[0];
+  const last = clear[clear.length - 1];
+  const delta = first && last ? (last.built_frac! - first.built_frac!) * 100 : null;
+  return (
+    <Card
+      title="Change over time"
+      action={
+        canStart && (
+          <Button
+            size="sm"
+            busy={start.isPending || Boolean(t?.running)}
+            disabled={Boolean(t?.running)}
+            onClick={() => start.mutate()}
+          >
+            {months.length ? 'Update' : 'Compute 3 years'}
+          </Button>
+        )
+      }
+    >
+      {q.isPending ? (
+        <Skeleton rows={3} />
+      ) : months.length === 0 ? (
+        <p className="text-[14px] text-soft">
+          {t?.running
+            ? (t.job?.message ?? 'Starting…')
+            : 'Monthly built-up share of this parcel from Sentinel-2. Shows when a change began, not just that it happened. Takes a few minutes online.'}
+        </p>
+      ) : (
+        <>
+          <TimelineChart months={months} onset={t?.onset_month ?? null} />
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[14px] tabular-nums">
+            {first && last && (
+              <>
+                <dt className="text-soft">built-up share</dt>
+                <dd>
+                  {(first.built_frac! * 100).toFixed(1)} % → {(last.built_frac! * 100).toFixed(1)} %
+                  {delta != null && (
+                    <span className="ml-2 font-mono text-[12px] text-soft">
+                      ({delta >= 0 ? '+' : ''}
+                      {delta.toFixed(1)} pts, {first.month.slice(0, 7)} → {last.month.slice(0, 7)})
+                    </span>
+                  )}
+                </dd>
+              </>
+            )}
+            <dt className="text-soft">change began</dt>
+            <dd>
+              {t?.onset_month
+                ? new Date(t.onset_month).toLocaleDateString(undefined, {
+                    month: 'long',
+                    year: 'numeric',
+                  })
+                : 'no sustained step detected'}
+            </dd>
+            <dt className="text-soft">clear months</dt>
+            <dd>
+              {clear.length} of {months.length}
+            </dd>
+          </dl>
+          {t?.running && t.job && (
+            <p className="mt-2 font-mono text-[12px] text-soft">
+              computing… {t.job.months_done}/{t.job.months_total} · {t.job.message}
+            </p>
+          )}
+          {t?.job?.status === 'failed' && (
+            <p className="mt-2 text-[13px] text-soft">Last run failed: {t.job.message}</p>
+          )}
+          <p className="mt-3 text-[12px] text-soft">{t?.note}</p>
+        </>
+      )}
+    </Card>
   );
 }
