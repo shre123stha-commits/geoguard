@@ -38,6 +38,7 @@ export interface DetectionProps {
   created_at: string;
   centroid: [number, number];
   zone?: ZoneContext | null;
+  persistence?: number;
 }
 
 export interface FeatureCollection<P, Id = string> {

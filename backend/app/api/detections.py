@@ -162,8 +162,15 @@ def _feature(d: Detection, hits: list[ZoneHit] | None = None) -> DetectionFeatur
 
 
 def _with_zones(db: DbDep, rows: list[Detection]) -> list[DetectionFeature]:
-    zones = ReferenceRepository(db).zone_hits_bulk([d.id for d in rows])
-    return [_feature(d, zones.get(d.id, [])) for d in rows]
+    ids = [d.id for d in rows]
+    zones = ReferenceRepository(db).zone_hits_bulk(ids)
+    pers = DetectionRepository(db).persistence_counts(ids)
+    out = []
+    for d in rows:
+        f = _feature(d, zones.get(d.id, []))
+        f.properties.persistence = pers.get(d.id, 1)
+        out.append(f)
+    return out
 
 
 def allowed_transitions(d: Detection, user: User) -> list[DetectionStatus]:
@@ -202,10 +209,12 @@ def _detail(d: Detection, db: DbDep, user: User) -> DetectionDetail:
             )
         )
     s = d.scan
+    props = _props(d, ReferenceRepository(db).zone_hits(d))
+    props.persistence = DetectionRepository(db).persistence_counts([d.id]).get(d.id, 1)
     return DetectionDetail(
         id=d.id,
         geometry=from_db(d.geom) or {},
-        properties=_props(d, ReferenceRepository(db).zone_hits(d)),
+        properties=props,
         parcel={
             "id": str(d.parcel.id),
             "name": d.parcel.name,
@@ -281,6 +290,7 @@ CSV_COLUMNS = [
     "created_at",
     "priority",
     "zone_context",
+    "seen_in_scans",
     "lon",
     "lat",
     "wkt",
@@ -291,17 +301,14 @@ def _zone_rows(
     db: DbDep, rows: Iterator[Detection], batch: int = 200
 ) -> Iterator[DetectionFeature]:
     """Attach zone context in batches while streaming."""
-    repo = ReferenceRepository(db)
     chunk: list[Detection] = []
     for d in rows:
         chunk.append(d)
         if len(chunk) >= batch:
-            zones = repo.zone_hits_bulk([x.id for x in chunk])
-            yield from (_feature(x, zones.get(x.id, [])) for x in chunk)
+            yield from _with_zones(db, chunk)
             chunk = []
     if chunk:
-        zones = repo.zone_hits_bulk([x.id for x in chunk])
-        yield from (_feature(x, zones.get(x.id, [])) for x in chunk)
+        yield from _with_zones(db, chunk)
 
 
 def _csv_rows(
@@ -336,6 +343,7 @@ def _csv_rows(
                 d.created_at.isoformat(),
                 p.zone.priority if p.zone else "",
                 p.zone.summary if p.zone else "",
+                p.persistence,
                 p.centroid[0],
                 p.centroid[1],
                 to_shape(d.geom).wkt,

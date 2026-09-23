@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2 import Geography
-from sqlalchemy import Select, case, cast, func, select
+from sqlalchemy import Select, case, cast, func, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.enums import ConfidenceClass, DetectionStatus, EvidenceKind
@@ -195,6 +195,40 @@ class DetectionRepository:
             .group_by(Detection.scan_id)
         )
         return {sid: int(n) for sid, n in rows}
+
+    def persistence_counts(self, detection_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """How many scans (including this one) have flagged the same site, following the
+        `matches_detection` chain backwards. One recursive query for a page of detections."""
+        if not detection_ids:
+            return {}
+        sql = text(
+            """
+            WITH RECURSIVE chain AS (
+                SELECT id AS root, id AS cur, matches_detection AS prev, 1 AS depth
+                FROM detections WHERE id = ANY(:ids)
+                UNION ALL
+                SELECT c.root, d.id, d.matches_detection, c.depth + 1
+                FROM chain c JOIN detections d ON d.id = c.prev
+                WHERE c.depth < 50
+            )
+            SELECT root, max(depth) FROM chain GROUP BY root
+            """
+        )
+        rows = self.db.execute(sql, {"ids": list(detection_ids)})
+        out = {d: 1 for d in detection_ids}
+        for root, depth in rows:
+            out[root] = int(depth)
+        return out
+
+    def reviewed_samples(self) -> list[Detection]:
+        """Confirmed / dismissed detections with their measurements — the free labels that
+        reviewing produces (used by the threshold insight)."""
+        q = (
+            select(Detection)
+            .where(Detection.status.in_([DetectionStatus.confirmed, DetectionStatus.dismissed]))
+            .options(selectinload(Detection.history))
+        )
+        return list(self.db.scalars(q))
 
     def find_previous_match(self, det: Detection) -> Detection | None:
         """Same site seen in an earlier scan: overlap > 50 % of the smaller area (schema 05 §6)."""

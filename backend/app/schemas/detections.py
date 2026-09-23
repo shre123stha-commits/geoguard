@@ -68,6 +68,7 @@ class DetectionProps(BaseModel):
     created_at: datetime
     centroid: list[float]  # [lon, lat]
     zone: ZoneContextOut | None = None  # Phase 9: priority + reference-zone hits
+    persistence: int = 1  # Phase 9.2: number of consecutive scans that flagged this site
 
 
 class DetectionFeature(BaseModel):

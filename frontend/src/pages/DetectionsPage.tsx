@@ -265,6 +265,11 @@ export function DetectionsPage() {
                           {p.zone && p.zone.priority !== 'normal' && (
                             <PriorityChip priority={p.zone.priority} className="ml-2" />
                           )}
+                          {(p.persistence ?? 1) > 1 && (
+                            <Chip className="ml-2" title="Flagged in consecutive scans">
+                              ×{p.persistence} scans
+                            </Chip>
+                          )}
                         </td>
                         <td className="max-w-[160px] truncate">
                           {p.parcel_name}
