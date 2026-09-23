@@ -339,3 +339,23 @@ Protected / restricted boundaries supplied by the owner (wetland, water_body, fo
 | geom | geometry(MultiPolygon, 4326), GiST, ST_IsValid | |
 
 Zone query (per detection): `ST_DWithin(det.geom::geography, feat.geom::geography, layer.buffer_m)`; inside fraction = `ST_Area(ST_Intersection(...)::geography) / ST_Area(det.geom::geography)`; distance = `ST_Distance(::geography)`.
+
+### 4.14 `parcel_timeseries` and `timeline_jobs` (Phase 9.3, migration 0008)
+
+| Column | Type | Notes |
+|---|---|---|
+| parcel_timeseries.parcel_id | fk → parcels ON DELETE CASCADE | pk with `month` |
+| month | date (first of month) | |
+| built_frac | real, null | share of valid parcel pixels with BUI ≥ `t_bui`; null = no clear view |
+| ndvi_mean, valid_frac | real, null | valid_frac < 0.2 → values null |
+| n_scenes | int | 0 = no Sentinel-2 scene that month |
+| t_bui | real | absolute BUI cut used (default 0.0) |
+| computed_at | timestamptz | |
+| timeline_jobs.parcel_id | pk, fk → parcels | one job row per parcel |
+| status | running / done / failed | |
+| progress, months_total, months_done, message | | polled by the UI |
+| started_at, finished_at | | |
+
+### 4.15 Field photos (Phase 9.4, migration 0009)
+
+`evidence_kind` gains `field_photo`; `evidence_files.meta jsonb NOT NULL DEFAULT '{}'` holds `lon`, `lat`, `distance_m`, `position_source` (exif / browser / null), `taken_at`, `uploaded_by`, `note`. Files live under `data/evidence/field/<det8>/<id>.jpg` and are served by the protected `/files` route.

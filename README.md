@@ -19,7 +19,7 @@ basemap tiles, Gmail App Password for alerts. See `docs/` for the full specifica
 
 ## Status
 
-**v1.1.0** — Phases 0–9 complete (v1.1 adds reference zones and priority). Everything below has been exercised end to end on the
+**v1.2.0** — Phases 0–9 complete (v1.1 added reference zones and priority; v1.2 adds repeat-sighting alerts and review insights, a per-parcel monthly timeline, and a phone field-visit page). Everything below has been exercised end to end on the
 sample area. Known limits are listed at the bottom of this file and inside the app.
 
 ## Stack
@@ -141,6 +141,9 @@ Every confirmed `high` detection then e-mails the recipients (threshold adjustab
 | Report | Detection page → **Generate report** | One-page PDF with evidence, measurements, history and the disclaimer. |
 | Export | **Detections → GeoJSON / CSV** | Honours the current filters. GeoJSON opens in QGIS; CSV (with WKT) opens in Excel. |
 | Reference zones | **Zones** (admin) | Upload boundaries where building is not expected (wetland, lake bed, reserve forest, CRZ, master-plan zone) as GeoJSON with a source and date; optional buffer. Every detection then shows a **priority** (critical / high / elevated / normal) and how far inside or near the zone it is — in the list, detail page, CSV/GeoJSON, PDF and e-mail. Filter the list with *Inside / near a reference zone*. Convert shapefiles/KML with QGIS (Export → GeoJSON, CRS EPSG:4326) or mapshaper.org. A starter file is in `docs\samples\pallikaranai_wetland_osm.geojson` (OpenStreetMap wetland outlines). |
+| Repeat sightings | **Settings → Alerts → Seen in scans** (admin) | Send the e-mail only after a site has been flagged in 2 or 3 scans in a row. **Settings → What your reviews say** shows how often each confidence class was confirmed and suggests threshold changes based on your own decisions. |
+| Change over time | Parcel page → **Compute 3 years** | Month-by-month built-up share of the parcel from Sentinel-2, with cloudy months shown as gaps and the month a sustained change began marked. Takes a few minutes per parcel online; re-running only fills new months. |
+| Field visit | Detection page → **On site? Open field page** (or `/detections/<id>/field` on the phone) | One-column page: distance from you to the flagged area, link to a map app, **Take a photo** (camera opens, position and distance are saved, EXIF is stripped), notes, and Confirm / Dismiss on the spot. Photos appear on the detection page. |
 | Recurring scans | **Schedules** (admin) | Weekly / monthly / cron; baseline = same season last year by default. Missed runs are skipped, not replayed. |
 | Users | **Users** (admin) | Admins manage everything; officers review. Temporary passwords must be changed at first sign-in. |
 
@@ -184,7 +187,7 @@ fixed subfolders, opaque 500 responses, no secrets in the repository (`.env` is 
    treat `medium` and `low` as prompts to look, not as results.
 3. **Clouds.** Monsoon months may have too few clear scenes; the scan warns when the
    composite is thin. Prefer dry-season windows.
-4. **Timing.** A detection tells you change happened *between* the two windows, not when.
+4. **Timing.** A detection tells you change happened *between* the two windows, not when. Use the parcel's **Change over time** card to narrow it down to a month (cloud-free months only).
 5. **Evidence base.** Precision figures come from one landscape and 9 labelled sites
    (`docs/evaluation.md`); they are indicative. Label more sites as you review.
 6. **Dependencies.** Imagery comes from public catalogues whose terms and uptime can change;

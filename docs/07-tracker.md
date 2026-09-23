@@ -3,9 +3,9 @@
 > Single source of truth for status. **Update this file at the end of every task.** Any AI assistant or human must read it before starting work.
 > Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
-**Current phase:** Phase 9.1 done — **v1.1.0 tagged** (reference zones & priority)
+**Current phase:** Phase 9.4 done — **v1.2.0 tagged** (persistence & insights, parcel timeline, field-visit page)
 **Current task:** none in progress. Owner: push to GitHub (tag included), rotate Supabase password, confirm CI green, label more evaluation sites when reviewing
-**Last updated:** 2026-09-21
+**Last updated:** 2026-09-23
 **Last updated by:** Arena Agent
 
 ---
@@ -23,7 +23,7 @@
 | 6 | Frontend Core | [x] | 04-design applied |
 | 7 | Reports and Alerts | [x] | E-mail only for owner (D68) |
 | 8 | Hardening and Release | [x] | v1.0.0 tagged 2026-09-20 |
-| 9 | v1.1 — Reference zones & priority | [x] | 9.1 done 2026-09-21 (D74–D76); v1.1.0 |
+| 9 | v1.1 / v1.2 — Zones, persistence, timeline, field visits | [x] | 9.1 2026-09-21 (v1.1.0); 9.2–9.4 2026-09-23 (D77–D82); v1.2.0 |
 | 10 | v2 learned model (optional) | [ ] | |
 
 ## 2. Task Checklist
@@ -103,8 +103,10 @@
 
 ### Phase 9 — v1.1: Reference zones and priority (owner request 2026-09-21)
 - [x] 9.1 Reference layers: upload GeoJSON boundaries (wetland / water body / forest / CRZ / land-use / custom) with source + date + buffer; PostGIS zone context on every detection (inside %, distance); priority critical/high/elevated/normal; list filter + badge, detail card, map overlay, CSV/GeoJSON columns, PDF rows, alert line; admin **Zones** page; migration 0007; 2 integration tests (122 total)
-- [ ] 9.2 (optional) Bundled starter layers for Tamil Nadu (Ramsar/Reserve Forest boundaries once the owner obtains official files); OSM wetland extract shipped as `docs/samples/pallikaranai_wetland_osm.geojson`
-- [ ] 9.3 (optional) "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
+- [x] 9.2 Persistence & insights (2026-09-23): `persistence` = consecutive scans a site was flagged (follows `matches_detection`); Alerts setting **Seen in scans** 1–3 (default 1) so an e-mail can wait for a repeat sighting; Settings → **What your reviews say**: precision per confidence class from confirm/dismiss history, dismiss-reason mix, threshold suggestions (`GET /settings/insights`); chips on list/detail. Tests: unit `test_insights.py`, integration `test_persistence_phase9.py`
+- [x] 9.3 Parcel timeline (2026-09-23): migration 0008 `parcel_timeseries` + `timeline_jobs`; monthly Sentinel-2 composite per parcel → built-up share (BUI ≥ 0), NDVI, clear %; cloud months are gaps; background job per parcel with progress, resume-safe; onset = first sustained step; `GET/POST /parcels/{id}/timeline`; **Change over time** card (inline SVG). Tests: `test_timeline_rules.py`, `integration/test_timeline_phase9.py`
+- [x] 9.4 Field-visit page (2026-09-23): migration 0009 (`evidence_kind` += field_photo, `evidence_files.meta`); `POST /detections/{id}/field-photo` (Pillow re-encode ≤ 1600 px, EXIF stripped, GPS from EXIF or browser, distance to site); `/detections/:id/field` phone layout with camera capture, live distance, OSM link, confirm/dismiss on site; photos on detail page. Tests: `test_field_photo.py`, `integration/test_field_photo_phase9.py`. Backend suite 133 passed; frontend typecheck/lint/build/vitest clean; 390 px no horizontal overflow (Playwright)
+- [ ] later (optional) Bundled official boundary layers once the owner obtains them; "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
 
 ## 3. Decision Log
 
@@ -187,6 +189,12 @@ Record every meaningful decision here (append only).
 | D74 | 2026-09-21 | **Zone context is computed on read, not stored.** `reference_features` (MultiPolygon, GiST) joined to detections with `ST_DWithin(geography, buffer_m)`; inside fraction = geodesic `ST_Intersection` area / detection area; strongest hit per layer. Uploading, buffering or deactivating a layer applies instantly to all past detections; no backfill job | Owner: "if we provide government data it should tell with much higher confidence" | Store hits at scan time (stale when layers change) |
 | D75 | 2026-09-21 | Priority ladder: **critical** = high confidence and ≥ 50 % inside a zone; **high** = high confidence touching/buffer, or medium ≥ 50 % inside; **elevated** = any other hit; **normal** = none. Priority never changes the detection's confidence or status — it is a triage order plus a citation (layer source + date) in UI, CSV/GeoJSON, PDF and e-mail. Wording stays "check first", never "illegal" (D45 family) | 03-appflow review order | Multiplying score (hides why) |
 | D76 | 2026-09-21 | Reference-layer uploads accept up to 5 000 polygons / 25 MB (`LARGE_BODY_PATHS` in hardening); other routes keep 6 MiB. Layers are admin-only to write, any user to read. Shapefile/KML conversion is left to QGIS/mapshaper (documented) rather than adding GDAL to the upload path | techspec §8 | Server-side shapefile parsing (pyshp + CRS handling) |
+| D77 | 2026-09-23 | Persistence is computed at read time by following the `matches_detection` chain (no new column); alert rule `min_persistence` lives in the `alerts` setting JSON | No migration, always consistent with re-linking; default 1 keeps v1.1 behaviour | Store a counter on `detections` |
+| D78 | 2026-09-23 | Review insights are descriptive only: per-class precision + dismiss-reason mix + plain-language suggestions; thresholds are never changed automatically | Screening tool must stay predictable; the officer decides | Auto-tuning thresholds |
+| D79 | 2026-09-23 | Timeline uses the **absolute** built-up index (BUI = NDBI − NDVI ≥ 0 → "more built/bare than green") per month, not the scan's Δ-BUI threshold; monthly median composite over the parcel only | Trend needs a level, not a change; parcel-only reads keep each month to seconds | Reuse scan change detection month-by-month (no baseline per month) |
+| D80 | 2026-09-23 | Months with no clear pixels (< 20 % valid) are stored with null values and drawn as hatched gaps; onset = first month ≥ +10 pts above the median of earlier clear months **and** held in the next clear month | Monsoon gaps must not look like "0 % built"; one bright month is not an onset | Interpolating gaps |
+| D81 | 2026-09-23 | Field photos are re-encoded with Pillow (≤ 1600 px JPEG, no EXIF); only lon/lat/distance/time go into `evidence_files.meta`. Browser geolocation is a fallback when EXIF has no GPS | Privacy (device serials, precise tracks) and small files on a free host | Keep originals |
+| D82 | 2026-09-23 | Field page is a route in the same SPA (`/detections/:id/field`), not a separate PWA/offline app | No new build, same auth; offline capture is listed as a future improvement | Service-worker offline queue |
 | D16 | 2026-09-19 | Primary imagery: Microsoft Planetary Computer STAC (no account needed since June 2024, incl. Sentinel-1 RTC). Fallback: CDSE STAC v1 `https://stac.dataspace.copernicus.eu/v1` (free account for downloads) | Audit in §6 | CDSE as primary (needs token from day one) |
 
 ## 4. Open Questions
