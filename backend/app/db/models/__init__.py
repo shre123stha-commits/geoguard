@@ -402,6 +402,40 @@ class ReferenceFeature(Base):
     layer: Mapped[ReferenceLayer] = relationship(back_populates="features")
 
 
+# Phase 9.3 — per-parcel monthly time series
+class ParcelTimeseries(Base):
+    __tablename__ = "parcel_timeseries"
+
+    parcel_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("parcels.id", ondelete="CASCADE"), primary_key=True
+    )
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    built_frac: Mapped[float | None] = mapped_column(REAL)
+    ndvi_mean: Mapped[float | None] = mapped_column(REAL)
+    valid_frac: Mapped[float | None] = mapped_column(REAL)
+    n_scenes: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    t_bui: Mapped[float] = mapped_column(REAL, nullable=False)
+    computed_at: Mapped[datetime] = created_at_col()
+
+
+class TimelineJob(Base):
+    __tablename__ = "timeline_jobs"
+    __table_args__ = (
+        CheckConstraint("status IN ('running','done','failed')", name="timeline_jobs_status"),
+    )
+
+    parcel_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("parcels.id", ondelete="CASCADE"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    progress: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    message: Mapped[str | None] = mapped_column(Text)
+    months_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    months_done: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    started_at: Mapped[datetime] = created_at_col()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 __all__ = [
     "Alert",
     "AppSetting",
@@ -410,6 +444,7 @@ __all__ = [
     "DetectionStatusHistory",
     "EvidenceFile",
     "Parcel",
+    "ParcelTimeseries",
     "ReferenceFeature",
     "ReferenceLayer",
     "Report",
@@ -418,5 +453,6 @@ __all__ = [
     "ScanScene",
     "ScanSchedule",
     "ScheduleParcel",
+    "TimelineJob",
     "User",
 ]
