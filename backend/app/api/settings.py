@@ -72,3 +72,65 @@ def test_alert(body: TestBody, _: AdminUser, db: DbDep, env: SettingsDep) -> Non
         alerts.send_test(env, cfg, body.recipient.strip())
     except AlertError as exc:
         raise HTTPException(status_code=502, detail=f"Test message failed: {exc}") from None
+
+
+# ---------- Phase 9.2: review insights ----------
+
+
+class ClassStatOut(BaseModel):
+    confidence: str
+    confirmed: int
+    dismissed: int
+    precision: float | None
+
+
+class SuggestionOut(BaseModel):
+    param: str
+    current: float
+    suggested: float
+    keeps_confirmed: int
+    drops_dismissed: int
+    of_confirmed: int
+    of_dismissed: int
+    text: str
+
+
+class InsightsOut(BaseModel):
+    reviewed: int
+    confirmed: int
+    dismissed: int
+    by_class: list[ClassStatOut]
+    dismiss_reasons: dict[str, int]
+    suggestions: list[SuggestionOut]
+    note: str
+    min_labels: int
+
+
+@router.get("/insights", response_model=InsightsOut)
+def review_insights(_: AdminUser, db: DbDep) -> InsightsOut:
+    """What the confirm/dismiss history says about precision and thresholds. Advisory only."""
+    from app.repositories import DetectionRepository
+    from app.schemas.scans import ScanParamsIn
+    from app.services import insights
+
+    defaults = ScanParamsIn()
+    rows = DetectionRepository(db).reviewed_samples()
+    ins = insights.compute(rows, defaults.t_bui, defaults.t_sar_db)
+    return InsightsOut(
+        reviewed=ins.reviewed,
+        confirmed=ins.confirmed,
+        dismissed=ins.dismissed,
+        by_class=[
+            ClassStatOut(
+                confidence=c.confidence,
+                confirmed=c.confirmed,
+                dismissed=c.dismissed,
+                precision=c.precision,
+            )
+            for c in ins.by_class
+        ],
+        dismiss_reasons=ins.dismiss_reasons,
+        suggestions=[SuggestionOut(**s.__dict__) for s in ins.suggestions],
+        note=ins.note,
+        min_labels=insights.MIN_LABELS,
+    )

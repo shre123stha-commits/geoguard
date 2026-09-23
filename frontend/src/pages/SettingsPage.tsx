@@ -6,6 +6,7 @@ import { getHealth } from '@/api/health';
 import { DEFAULT_PARAMS } from '@/api/scans';
 import {
   getAlertSettings,
+  getInsights,
   PROVIDER_LABEL,
   putAlertSettings,
   RECIPIENT_HINT,
@@ -42,7 +43,10 @@ export function SettingsPage() {
         lead="What this installation is set up to do."
       />
       <div className="grid gap-6 md:grid-cols-2">
-        <AlertsCard />
+        <div className="space-y-6">
+          <AlertsCard />
+          <InsightsCard />
+        </div>
         <div className="space-y-6">
           <Card title="Service">
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-[14px]">
@@ -109,6 +113,7 @@ function AlertsCard() {
         provider: d.provider,
         recipients: d.recipients,
         min_confidence: d.min_confidence,
+        min_persistence: d.min_persistence ?? 1,
         app_url: d.app_url,
       });
       setRecipientsText(d.recipients.join('\n'));
@@ -157,6 +162,7 @@ function AlertsCard() {
     provider: q.data.provider,
     recipients: q.data.recipients,
     min_confidence: q.data.min_confidence,
+    min_persistence: q.data.min_persistence ?? 1,
     app_url: q.data.app_url,
   };
   const dirty = JSON.stringify(body) !== JSON.stringify(saved);
@@ -218,6 +224,18 @@ function AlertsCard() {
               {CONF.map((c) => (
                 <option key={c} value={c}>
                   {c}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Seen in scans" hint="Alert only after this many consecutive scans">
+            <Select
+              value={String(form.min_persistence)}
+              onChange={(e) => setForm({ ...form, min_persistence: Number(e.target.value) })}
+            >
+              {[1, 2, 3].map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? 'first sighting' : `${n} scans in a row`}
                 </option>
               ))}
             </Select>
@@ -284,6 +302,58 @@ function AlertsCard() {
           </Field>
         )}
       </div>
+    </Card>
+  );
+}
+
+function InsightsCard() {
+  const q = useQuery({ queryKey: ['insights'], queryFn: getInsights });
+  if (q.isPending) return <Skeleton rows={3} />;
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  const d = q.data;
+  return (
+    <Card title="What your reviews say">
+      <p className="mb-3 text-[14px] text-soft">
+        Every confirm or dismiss is a label. {d.reviewed} reviewed so far ({d.confirmed} confirmed,{' '}
+        {d.dismissed} dismissed).
+      </p>
+      <dl className="mb-3 grid grid-cols-[auto_1fr_1fr] gap-x-6 gap-y-1 font-mono text-[12px]">
+        <dt className="text-soft">class</dt>
+        <dd className="text-soft">confirmed / dismissed</dd>
+        <dd className="text-soft">precision</dd>
+        {d.by_class.map((c) => (
+          <div key={c.confidence} className="contents">
+            <dt>{c.confidence}</dt>
+            <dd>
+              {c.confirmed} / {c.dismissed}
+            </dd>
+            <dd>{c.precision == null ? '—' : `${Math.round(c.precision * 100)} %`}</dd>
+          </div>
+        ))}
+      </dl>
+      {Object.keys(d.dismiss_reasons).length > 0 && (
+        <p className="mb-3 font-mono text-[12px] text-soft">
+          dismissed because:{' '}
+          {Object.entries(d.dismiss_reasons)
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => `${k.replace('_', ' ')} ×${v}`)
+            .join(' · ')}
+        </p>
+      )}
+      {d.suggestions.length > 0 ? (
+        <ul className="space-y-2 text-[14px]">
+          {d.suggestions.map((s) => (
+            <li key={s.param} className="border-t border-hair pt-2">
+              {s.text}{' '}
+              <span className="text-soft">
+                Set it under Advanced when creating a scan or schedule.
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[13px] text-soft">{d.note}</p>
+      )}
     </Card>
   );
 }

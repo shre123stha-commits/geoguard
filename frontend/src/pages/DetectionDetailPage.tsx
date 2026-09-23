@@ -162,6 +162,7 @@ export function DetectionDetailPage() {
               </Link>
             )}
             {p.zone && <PriorityChip priority={p.zone.priority} />}
+            {(p.persistence ?? 1) > 1 && <Chip>seen in {p.persistence} scans in a row</Chip>}
           </span>
         }
       />

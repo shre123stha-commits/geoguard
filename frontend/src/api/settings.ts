@@ -8,6 +8,7 @@ export interface AlertSettings {
   provider: AlertProvider;
   recipients: string[];
   min_confidence: Confidence;
+  min_persistence: number;
   app_url: string;
 }
 
@@ -35,3 +36,29 @@ export const RECIPIENT_HINT: Record<AlertProvider, string> = {
   telegram: 'Telegram chat IDs (a person or a group the bot has been added to), one per line.',
   email: 'E-mail addresses, one per line.',
 };
+
+export interface Insights {
+  reviewed: number;
+  confirmed: number;
+  dismissed: number;
+  by_class: {
+    confidence: Confidence;
+    confirmed: number;
+    dismissed: number;
+    precision: number | null;
+  }[];
+  dismiss_reasons: Record<string, number>;
+  suggestions: {
+    param: string;
+    current: number;
+    suggested: number;
+    keeps_confirmed: number;
+    drops_dismissed: number;
+    of_confirmed: number;
+    of_dismissed: number;
+    text: string;
+  }[];
+  note: string;
+  min_labels: number;
+}
+export const getInsights = () => apiFetch<Insights>('settings/insights');

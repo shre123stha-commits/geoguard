@@ -193,11 +193,13 @@ export function Chip({
   tone = 'neutral',
   dot,
   className,
+  title,
 }: {
   children: ReactNode;
   tone?: 'neutral' | 'high' | 'medium' | 'low' | 'ok' | 'danger';
   dot?: boolean;
   className?: string;
+  title?: string;
 }) {
   const color =
     tone === 'neutral'
@@ -214,6 +216,7 @@ export function Chip({
         className,
       )}
       style={color ? { color } : undefined}
+      title={title}
     >
       {dot && (
         <span

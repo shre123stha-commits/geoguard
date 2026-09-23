@@ -35,6 +35,9 @@ class AlertSettings(BaseModel):
     provider: Literal["console", "telegram", "email"] = "console"
     recipients: list[str] = Field(default_factory=list, max_length=20)
     min_confidence: ConfidenceClass = ConfidenceClass.high
+    # Phase 9.2 persistence rule: only alert when the same site was flagged in at least this
+    # many consecutive scans (1 = every confirmed detection alerts, as before).
+    min_persistence: int = Field(default=1, ge=1, le=6)
     app_url: str = ""  # public base URL used in links, e.g. https://geoguard.example
 
     @field_validator("recipients")
@@ -142,6 +145,16 @@ def dispatch_for_confirmation(db: Session, env: Settings, d: Detection) -> list[
     cfg = load_settings(db, env)
     if not cfg.enabled or _RANK[d.confidence] < _RANK[cfg.min_confidence]:
         return []
+    if cfg.min_persistence > 1:
+        from app.repositories.detections import DetectionRepository
+
+        seen = DetectionRepository(db).persistence_counts([d.id]).get(d.id, 1)
+        if seen < cfg.min_persistence:
+            logger.info(
+                "alert suppressed by persistence rule",
+                extra={"detection_id": str(d.id), "seen": seen, "need": cfg.min_persistence},
+            )
+            return []
     recipients = cfg.recipients or (["log"] if cfg.provider == "console" else [])
     zone = _zone_summary(db, d)
     out = []
