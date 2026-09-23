@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ApiRequestError } from '@/api/client';
 import {
@@ -31,6 +31,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useToast } from '@/components/useToast';
+import { EvidenceImg } from '@/components/EvidenceImg';
 import { fmtArea, fmtDateTime } from '@/lib/format';
 import { bboxOf } from '@/lib/geo';
 
@@ -128,6 +129,7 @@ export function DetectionDetailPage() {
   const d = det.data;
   const p = d.properties;
   const ev = Object.fromEntries(d.evidence.map((e) => [e.kind, e]));
+  const fieldPhotos = d.evidence.filter((e) => e.kind === 'field_photo');
   const allowed = d.allowed_transitions;
   const dismissBlocked = reason === 'other' && !note.trim();
 
@@ -209,6 +211,22 @@ export function DetectionDetailPage() {
                   the map is the part above threshold that also passed the size and radar checks.
                 </p>
               </div>
+            </Card>
+          )}
+          {fieldPhotos.length > 0 && (
+            <Card title="Field photos">
+              <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                {fieldPhotos.map((ph) => (
+                  <li key={ph.url} className="space-y-1">
+                    <EvidenceImg url={ph.url} alt="Field photo" className="w-full" />
+                    <p className="font-mono text-[11px] text-soft">
+                      {ph.meta.taken_at ? new Date(ph.meta.taken_at).toLocaleString() : ''}
+                      {ph.meta.distance_m != null ? ` · ${ph.meta.distance_m} m from site` : ''}
+                    </p>
+                    {ph.meta.note && <p className="text-[13px] text-soft">{ph.meta.note}</p>}
+                  </li>
+                ))}
+              </ul>
             </Card>
           )}
           <Card title="History">
@@ -390,7 +408,17 @@ export function DetectionDetailPage() {
             </dl>
           </Card>
 
-          <Card title="Review">
+          <Card
+            title="Review"
+            action={
+              <Link
+                to={`/detections/${d.id}/field`}
+                className="text-[13px] underline underline-offset-4"
+              >
+                On site? Open field page
+              </Link>
+            }
+          >
             {allowed.length === 0 ? (
               <p className="text-[14px] text-soft">
                 No further action is available to you on this detection.
@@ -472,32 +500,5 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
       <dt className="text-soft">{k}</dt>
       <dd>{v}</dd>
     </>
-  );
-}
-
-function EvidenceImg({ url, alt, className }: { url: string; alt: string; className?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    let obj: string | null = null;
-    fetchBlobUrl(url)
-      .then((u) => {
-        obj = u;
-        if (alive) setSrc(u);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-      if (obj) URL.revokeObjectURL(obj);
-    };
-  }, [url]);
-  return src ? (
-    <img
-      src={src}
-      alt={alt}
-      className={`shrink-0 rounded-ctl border border-hair ${className ?? ''}`}
-    />
-  ) : (
-    <div className={`aspect-square shrink-0 animate-pulse rounded-ctl bg-s2 ${className ?? ''}`} />
   );
 }

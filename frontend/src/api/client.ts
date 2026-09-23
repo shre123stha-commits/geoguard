@@ -35,7 +35,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const res = await fetch(path.startsWith('/') ? path : `${API_BASE}/${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      // multipart bodies must let the browser set the boundary
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },

@@ -93,6 +93,7 @@ class EvidenceOut(BaseModel):
     width_px: int | None
     height_px: int | None
     bounds: list[float] | None  # [minx, miny, maxx, maxy] WGS84
+    meta: dict[str, Any] = {}  # field photos: lon/lat/distance_m/position_source/note
 
 
 class HistoryOut(BaseModel):

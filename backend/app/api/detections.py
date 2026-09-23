@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from datetime import date, datetime, time
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from geoalchemy2.shape import to_shape
 from pydantic import ValidationError
@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from app.alerts import service as alerts
 from app.api.deps import ActiveUser, DbDep, ReviewerUser, SettingsDep
-from app.db.enums import ConfidenceClass, DetectionStatus, UserRole
+from app.db.enums import ConfidenceClass, DetectionStatus, EvidenceKind, UserRole
 from app.db.models import Alert, Detection, Report, User
 from app.reports.service import generate_report
 from app.repositories import DetectionRepository, UserRepository
@@ -40,6 +40,7 @@ from app.schemas.detections import (
     StatusChange,
 )
 from app.schemas.reference import ZoneContextOut, ZoneHitOut
+from app.services.field_photo import PhotoError, save_field_photo
 from app.services.zones import describe, zone_context
 
 router = APIRouter(prefix="/detections", tags=["detections"])
@@ -206,6 +207,7 @@ def _detail(d: Detection, db: DbDep, user: User) -> DetectionDetail:
                 width_px=e.width_px,
                 height_px=e.height_px,
                 bounds=[round(v, 6) for v in b] if b else None,
+                meta=e.meta or {},
             )
         )
     s = d.scan
@@ -504,4 +506,41 @@ def retry_alert(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
     db.commit()
+    return _detail(_get_or_404(db, detection_id), db, user)
+
+
+@router.post("/{detection_id}/field-photo", response_model=DetectionDetail, status_code=201)
+async def upload_field_photo(
+    detection_id: uuid.UUID,
+    user: ReviewerUser,
+    db: DbDep,
+    settings: SettingsDep,
+    file: UploadFile,
+    lon: Annotated[float | None, Form()] = None,
+    lat: Annotated[float | None, Form()] = None,
+    note: Annotated[str | None, Form(max_length=500)] = None,
+) -> DetectionDetail:
+    """Phase 9.4: attach a geotagged site photo. `lon`/`lat` are the phone's browser position,
+    used only when the image has no EXIF GPS. Photos are re-encoded; EXIF is not kept."""
+    d = _get_or_404(db, detection_id)
+    raw = await file.read()
+    c = from_db(d.centroid) if d.centroid is not None else None
+    centroid: tuple[float, float] | None = (
+        (float(c["coordinates"][0]), float(c["coordinates"][1])) if c else None
+    )
+    browser = (lon, lat) if lon is not None and lat is not None else None
+    try:
+        saved = save_field_photo(settings.data_dir, d.id, raw, centroid, browser)
+    except PhotoError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    ev = DetectionRepository(db).add_evidence(
+        d, EvidenceKind.field_photo, saved.rel_path, saved.width, saved.height
+    )
+    ev.meta = {**saved.meta, "uploaded_by": str(user.id), "note": (note or "").strip() or None}
+    db.commit()
+    db.expire(d)
+    logger.info(
+        "field photo attached",
+        extra={"detection_id": str(d.id), "user_id": str(user.id), "step": "field_photo"},
+    )
     return _detail(_get_or_404(db, detection_id), db, user)
