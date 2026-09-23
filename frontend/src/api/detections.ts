@@ -54,11 +54,19 @@ export interface DetectionCollection extends FeatureCollection<DetectionProps> {
 }
 
 export interface Evidence {
-  kind: 'before_rgb' | 'after_rgb' | 'change_map' | 'overview';
+  kind: 'before_rgb' | 'after_rgb' | 'change_map' | 'overview' | 'field_photo';
   url: string;
   width_px: number | null;
   height_px: number | null;
   bounds: [number, number, number, number] | null;
+  meta: {
+    lon?: number;
+    lat?: number;
+    distance_m?: number;
+    position_source?: 'exif' | 'browser' | null;
+    taken_at?: string;
+    note?: string | null;
+  };
 }
 
 export interface HistoryEntry {
@@ -161,6 +169,21 @@ export const setDetectionStatus = (
     method: 'PATCH',
     body: JSON.stringify({ status, note: note || null, reason_code: reason_code ?? null }),
   });
+export const uploadFieldPhoto = (
+  id: string,
+  file: File,
+  pos: { lon: number; lat: number } | null,
+  note = '',
+) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (pos) {
+    fd.append('lon', String(pos.lon));
+    fd.append('lat', String(pos.lat));
+  }
+  if (note) fd.append('note', note);
+  return apiFetch<DetectionDetail>(`detections/${id}/field-photo`, { method: 'POST', body: fd });
+};
 export const createReport = (id: string) =>
   apiFetch<DetectionDetail>(`detections/${id}/report`, { method: 'POST' });
 export const retryAlert = (id: string, alertId: string) =>

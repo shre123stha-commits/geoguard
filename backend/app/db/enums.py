@@ -44,6 +44,7 @@ class EvidenceKind(enum.StrEnum):
     after_rgb = "after_rgb"
     change_map = "change_map"
     overview = "overview"
+    field_photo = "field_photo"  # geotagged photo taken on site (Phase 9.4)
 
 
 class AlertStatus(enum.StrEnum):

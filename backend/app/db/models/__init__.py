@@ -271,6 +271,7 @@ class EvidenceFile(Base):
     width_px: Mapped[int | None] = mapped_column(Integer)
     height_px: Mapped[int | None] = mapped_column(Integer)
     bounds: Mapped[Any | None] = mapped_column(Geometry("POLYGON", srid=4326, spatial_index=False))
+    meta: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = created_at_col()
 
 

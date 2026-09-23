@@ -3,6 +3,7 @@ import { useAuth } from '@/app/useAuth';
 import { AppShell } from '@/components/AppShell';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { FieldVisitPage } from '@/pages/FieldVisitPage';
 import { DetectionDetailPage } from '@/pages/DetectionDetailPage';
 import { DetectionsPage } from '@/pages/DetectionsPage';
 import { HealthPage } from '@/pages/HealthPage';
@@ -54,6 +55,7 @@ export function AppRoutes() {
           <Route path="/scans/:id" element={<ScanDetailPage />} />
           <Route path="/detections" element={<DetectionsPage />} />
           <Route path="/detections/:id" element={<DetectionDetailPage />} />
+          <Route path="/detections/:id/field" element={<FieldVisitPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
           <Route path="/reference-layers" element={<ReferenceLayersPage />} />
           <Route path="/users" element={<UsersPage />} />
