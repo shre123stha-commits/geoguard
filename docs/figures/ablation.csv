@@ -1,0 +1,9 @@
+variant,label,n_det,tp,fp,unsure,precision,recall
+fusion,Full method (optical + radar fusion),8,6,0,2,1.0,0.8571428571428571
+fusion_hm,"Full method, high + medium only",5,4,0,1,1.0,0.5714285714285714
+optical_only,Optical only (ΔBUI ∧ ΔNDVI),5,4,0,1,1.0,0.5714285714285714
+radar_only,Radar only (Δσ°VV),6,3,2,1,0.6,0.42857142857142855
+no_water,− water exclusion,11,6,3,2,0.6666666666666666,0.8571428571428571
+no_center,− AOI-median centring,7,5,0,2,1.0,0.7142857142857143
+no_opening,− 3×3 opening,17,6,11,0,0.35294117647058826,0.7142857142857143
+no_minarea,− 400 m² minimum (100 m²),8,6,0,2,1.0,0.8571428571428571

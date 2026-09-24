@@ -1,0 +1,9 @@
+method,n_det,tp,fp,unsure,precision,recall
+"two-window, same season (Jan–Mar 2020 → Jan–Mar 2023)",5,4,1,0,0.8,0.7142857142857143
+"two-window, wet → dry (Sep–Nov 2019 → Mar–May 2023)",6,4,2,0,0.6666666666666666,0.8571428571428571
+"two-window, dry → wet (Mar–May 2020 → Sep–Nov 2023)",6,2,4,0,0.3333333333333333,0.42857142857142855
+"phenology-normalised (T 0.15, 2 months)",7,4,3,0,0.5714285714285714,0.8571428571428571
+"phenology-normalised, onsets by May 2023",5,3,2,0,0.6,0.5714285714285714
+"phenology-normalised, onsets by Nov 2023",7,4,3,0,0.5714285714285714,0.8571428571428571
+"phenology-normalised (T 0.15, 1 month)",4,3,1,0,0.75,0.7142857142857143
+"phenology-normalised (T 0.15, 3 months)",6,4,2,0,0.6666666666666666,0.8571428571428571
