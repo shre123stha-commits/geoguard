@@ -5,7 +5,7 @@
 
 **Current phase:** Phase 9.4 done — **v1.2.0 tagged** (persistence & insights, parcel timeline, field-visit page)
 **Current task:** none in progress. Owner: push to GitHub (tag included), rotate Supabase password, confirm CI green, label more evaluation sites when reviewing
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 **Last updated by:** Arena Agent
 
 ---
@@ -106,7 +106,8 @@
 - [x] 9.2 Persistence & insights (2026-09-23): `persistence` = consecutive scans a site was flagged (follows `matches_detection`); Alerts setting **Seen in scans** 1–3 (default 1) so an e-mail can wait for a repeat sighting; Settings → **What your reviews say**: precision per confidence class from confirm/dismiss history, dismiss-reason mix, threshold suggestions (`GET /settings/insights`); chips on list/detail. Tests: unit `test_insights.py`, integration `test_persistence_phase9.py`
 - [x] 9.3 Parcel timeline (2026-09-23): migration 0008 `parcel_timeseries` + `timeline_jobs`; monthly Sentinel-2 composite per parcel → built-up share (BUI ≥ 0), NDVI, clear %; cloud months are gaps; background job per parcel with progress, resume-safe; onset = first sustained step; `GET/POST /parcels/{id}/timeline`; **Change over time** card (inline SVG). Tests: `test_timeline_rules.py`, `integration/test_timeline_phase9.py`
 - [x] 9.4 Field-visit page (2026-09-23): migration 0009 (`evidence_kind` += field_photo, `evidence_files.meta`); `POST /detections/{id}/field-photo` (Pillow re-encode ≤ 1600 px, EXIF stripped, GPS from EXIF or browser, distance to site); `/detections/:id/field` phone layout with camera capture, live distance, OSM link, confirm/dismiss on site; photos on detail page. Tests: `test_field_photo.py`, `integration/test_field_photo_phase9.py`. Backend suite 133 passed; frontend typecheck/lint/build/vitest clean; 390 px no horizontal overflow (Playwright)
-- [ ] later (optional) Bundled official boundary layers once the owner obtains them; "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
+- [x] 9.5 Design contribution & evidence (2026-09-24, faculty review): `docs/design-contribution.md` (problem → six design decisions → ablation → new method → limitations → demo path); `scripts/ablation.py` (8 variants + PR curve, `docs/figures/ablation.png`, `pr_curve.png`); new `app/pipeline/phenology.py` — parcel-level phenology-normalised change detection (two-harmonic seasonal fit per pixel, anomaly + 2-month persistence + 40 % permanence + per-month water exclusion, onset month); `scripts/fetch_monthly_indices.py` (60-month S2 stack from Planetary Computer, cached) + `scripts/phenology_change.py` (season-mismatch experiment, onsets, `seasonal_cycle.png`, `site_anomalies.png`); 3 unit tests. Results: fusion 100 % P / 86 % R; every removed element costs precision or recall; two-window falls to 33 % P when seasons are mismatched, phenology method needs no season choice, 86 % R, onset dated per site (D83–D85)
+- [ ] later (optional) Independent blind label set (~30 random cells) to remove the v1-seeded label bias; phenology method as a scan mode in the UI; bundled official boundary layers once the owner obtains them; "previously reviewed" badge (Flow F); AOI-local cloud % before download (D26)
 
 ## 3. Decision Log
 
@@ -195,6 +196,9 @@ Record every meaningful decision here (append only).
 | D80 | 2026-09-23 | Months with no clear pixels (< 20 % valid) are stored with null values and drawn as hatched gaps; onset = first month ≥ +10 pts above the median of earlier clear months **and** held in the next clear month | Monsoon gaps must not look like "0 % built"; one bright month is not an onset | Interpolating gaps |
 | D81 | 2026-09-23 | Field photos are re-encoded with Pillow (≤ 1600 px JPEG, no EXIF); only lon/lat/distance/time go into `evidence_files.meta`. Browser geolocation is a fallback when EXIF has no GPS | Privacy (device serials, precise tracks) and small files on a free host | Keep originals |
 | D82 | 2026-09-23 | Field page is a route in the same SPA (`/detections/:id/field`), not a separate PWA/offline app | No new build, same auth; offline capture is listed as a future improvement | Service-worker offline queue |
+| D83 | 2026-09-24 | Novelty is claimed for the *design* (fusion-by-agreement, exclusions, workflow, persistence, self-calibration, onset dating) and backed by an ablation, not for any single component | Faculty asked "what is innovative"; honest framing beats overclaiming | Claim a new index / a CNN |
+| D84 | 2026-09-24 | Phenology method: two harmonics, reference = first 24 months, anomaly ≥ 0.15 ∧ NDVI anomaly ≤ −0.10, persist 2 clear months, hold ≥ 40 % afterwards, per-month water mask, no per-month centring, months < 50 % clear dropped | Grid search on Pallikaranai (48 settings): centring and hold 0.6 cut recall to 43 %; static water mask let flooding pixels through (48 % of parcel flagged) | BFAST/CCDC-style full break detection (heavier, no clear gain at 9 sites) |
+| D85 | 2026-09-24 | Evaluation CSVs and figures are committed under `docs/figures/`; the 60-month raster stack stays in `data/phenology` (gitignored, ~15 MB, re-fetchable) | Reviewers need numbers without a 10-minute download | Commit the stack |
 | D16 | 2026-09-19 | Primary imagery: Microsoft Planetary Computer STAC (no account needed since June 2024, incl. Sentinel-1 RTC). Fallback: CDSE STAC v1 `https://stac.dataspace.copernicus.eu/v1` (free account for downloads) | Audit in §6 | CDSE as primary (needs token from day one) |
 
 ## 4. Open Questions

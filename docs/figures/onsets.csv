@@ -1,0 +1,10 @@
+site,label,onset_month,flagged_pixel_fraction
+1,real,2022-05,0.33
+2,real,2021-11,0.88
+3,real,2022-08,0.5
+4,unsure,2021-01,0.22
+5,real,2022-04,0.94
+6,real,2022-10,0.28
+7,real,2022-04,0.67
+8,unsure,,0.0
+9,real,2023-08,0.67

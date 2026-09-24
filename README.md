@@ -19,6 +19,8 @@ basemap tiles, Gmail App Password for alerts. See `docs/` for the full specifica
 
 ## Status
 
+**Why this design?** `docs\design-contribution.md` — the design decisions, an ablation study and the phenology-normalised change method with figures.
+
 **v1.2.0** — Phases 0–9 complete (v1.1 added reference zones and priority; v1.2 adds repeat-sighting alerts and review insights, a per-parcel monthly timeline, and a phone field-visit page). Everything below has been exercised end to end on the
 sample area. Known limits are listed at the bottom of this file and inside the app.
 
@@ -187,7 +189,7 @@ fixed subfolders, opaque 500 responses, no secrets in the repository (`.env` is 
    treat `medium` and `low` as prompts to look, not as results.
 3. **Clouds.** Monsoon months may have too few clear scenes; the scan warns when the
    composite is thin. Prefer dry-season windows.
-4. **Timing.** A detection tells you change happened *between* the two windows, not when. Use the parcel's **Change over time** card to narrow it down to a month (cloud-free months only).
+4. **Timing.** A detection tells you change happened *between* the two windows, not when. (See `docs\design-contribution.md` §5 for the seasonal-model method that dates the onset month.) Use the parcel's **Change over time** card to narrow it down to a month (cloud-free months only).
 5. **Evidence base.** Precision figures come from one landscape and 9 labelled sites
    (`docs/evaluation.md`); they are indicative. Label more sites as you review.
 6. **Dependencies.** Imagery comes from public catalogues whose terms and uptime can change;
