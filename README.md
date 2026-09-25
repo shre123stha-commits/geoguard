@@ -21,7 +21,7 @@ basemap tiles, Gmail App Password for alerts. See `docs/` for the full specifica
 
 **Why this design?** `docs\design-contribution.md` — the design decisions, an ablation study and the phenology-normalised change method with figures.
 
-**v1.2.0** — Phases 0–9 complete (v1.1 added reference zones and priority; v1.2 adds repeat-sighting alerts and review insights, a per-parcel monthly timeline, and a phone field-visit page). Everything below has been exercised end to end on the
+**v1.3.0** — Phases 0–9 complete (v1.1 added reference zones and priority; v1.2 repeat-sighting alerts, review insights, a per-parcel monthly timeline and a phone field-visit page; v1.3 the **Seasonal model** scan mode that dates each change to its onset month, with radar confirmation, plus a blind-evaluation protocol). Everything below has been exercised end to end on the
 sample area. Known limits are listed at the bottom of this file and inside the app.
 
 ## Stack
@@ -164,13 +164,15 @@ safe separately.
 ## Quality checks
 
 ```powershell
-cd backend;  ruff check .; ruff format --check .; mypy; pytest       # 120 tests
+cd backend;  ruff check .; ruff format --check .; mypy; pytest       # 142 tests
 cd frontend; npm run lint; npm run typecheck; npm test; npm run build
 pre-commit install                                                     # hooks
 ```
 
-Tests need `TEST_DATABASE_URL` (they run in schema `geoguard_test` of the same database) and
-skip themselves if it is unreachable. Accessibility: zero axe-core WCAG 2 A/AA violations on
+Tests need `TEST_DATABASE_URL` in `backend\.env` (they run in schema `geoguard_test` of the
+same database) and skip themselves if it is unreachable — on Supabase use the same connection
+string as `DATABASE_URL`; the integration tests create and drop only their own schema. Without
+it, `pytest` reports ~100 passed and the rest skipped; that is expected, not a failure. Accessibility: zero axe-core WCAG 2 A/AA violations on
 all main pages at 1280 px and 390 px (2026-09-20).
 
 ## Security notes
@@ -179,6 +181,12 @@ argon2id passwords (≥ 10 chars), short-lived JWT, role checks on every route, 
 logins → 5-minute cooldown per e-mail/IP, 6 MB request-body cap, strict security headers,
 CORS limited to `CORS_ORIGINS`, evidence/report files served only to signed-in users from
 fixed subfolders, opaque 500 responses, no secrets in the repository (`.env` is gitignored).
+
+**If a database password was ever pasted into a chat, e-mail or screenshot, rotate it:**
+Supabase → Project Settings → Database → *Reset database password*, then update
+`DATABASE_URL` / `TEST_DATABASE_URL` in `backend\.env` and restart uvicorn. The review in
+`docs/07-tracker.md` §8 lists which security items were verified by tests and which still need
+a manual check on the owner's machine.
 
 ## Limitations (read before relying on results)
 
