@@ -100,7 +100,15 @@ class Data:
             self.cur_s1 = (z["bands"][0], z["bands"][1])
 
 
-def run(v: Variant, D: Data) -> tuple[Evaluation, int]:
+def run_masks(v: Variant, D: Data) -> np.ndarray:
+    """Pixel mask of everything the variant would report (used by evaluate_blind.py)."""
+    m = np.zeros(D.grid.shape, dtype=bool)
+    for r in _regions(v, D):
+        m |= r.pixel_mask
+    return m
+
+
+def _regions(v: Variant, D: Data) -> list[Region]:
     ib, ic = compute_indices(*D.base_s2), compute_indices(*D.cur_s2)
     opt = optical_change_mask(
         ib,
@@ -127,7 +135,7 @@ def run(v: Variant, D: Data) -> tuple[Evaluation, int]:
     opt_clean = clean_mask(opt.mask, v.opening) if v.opening else opt.mask
     optical = mask_to_regions(opt_clean, D.grid) if v.optical else []
     radar = mask_to_regions(rad_clean, D.grid) if v.radar else []
-    dets: list[tuple[object, str]] = []
+    out: list[Region] = []
     if v.fuse_:
         fused = fuse(
             optical,
@@ -138,18 +146,27 @@ def run(v: Variant, D: Data) -> tuple[Evaluation, int]:
             FusionParams(overlap_threshold=v.overlap),
         )
         for f in fused:
-            if f.confidence not in v.classes:
-                continue
-            for c in clip_to_parcels(
-                [Region(f.region.geom_utm, f.region.pixel_mask)], D.feats, D.grid, v.min_area
-            ):
-                dets.append((c.geom_wgs84, f.confidence))
+            if f.confidence in v.classes:
+                out.append(_Tagged(f.region.geom_utm, f.region.pixel_mask, f.confidence))
     else:
-        regions = optical if v.optical else radar
         label = "optical" if v.optical else "radar"
-        for r in regions:
-            for c in clip_to_parcels([r], D.feats, D.grid, v.min_area):
-                dets.append((c.geom_wgs84, label))
+        for r in optical if v.optical else radar:
+            out.append(_Tagged(r.geom_utm, r.pixel_mask, label))
+    return out
+
+
+class _Tagged(Region):
+    def __init__(self, geom_utm, pixel_mask, tag: str) -> None:  # type: ignore[no-untyped-def]
+        object.__setattr__(self, "geom_utm", geom_utm)
+        object.__setattr__(self, "pixel_mask", pixel_mask)
+        object.__setattr__(self, "tag", tag)
+
+
+def run(v: Variant, D: Data) -> tuple[Evaluation, int]:
+    dets: list[tuple[object, str]] = []
+    for r in _regions(v, D):
+        for c in clip_to_parcels([r], D.feats, D.grid, v.min_area):
+            dets.append((c.geom_wgs84, r.tag))  # type: ignore[attr-defined]
     ev = evaluate(dets, D.labels)  # type: ignore[arg-type]
     return ev, len(dets)
 
