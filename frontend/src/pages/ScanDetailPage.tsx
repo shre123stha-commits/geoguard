@@ -115,8 +115,17 @@ export function ScanDetailPage() {
         title={s.parcels.map((p) => p.name).join(', ') || 'Scan'}
         lead={
           <>
-            Baseline {s.baseline_start} → {s.baseline_end} · Current {s.current_start} →{' '}
+            {s.params.mode === 'seasonal' ? 'Seasonal model · Reference' : 'Baseline'}{' '}
+            {s.baseline_start} → {s.baseline_end} ·{' '}
+            {s.params.mode === 'seasonal' ? 'Monitored' : 'Current'} {s.current_start} →{' '}
             {s.current_end} · {s.algorithm_version}
+            {s.params.months && (
+              <>
+                {' '}
+                · {s.params.months.total} months ({s.params.months.with_optical} with optical,{' '}
+                {s.params.months.with_radar} with radar)
+              </>
+            )}
             {s.rerun_of && (
               <>
                 {' '}
@@ -274,7 +283,7 @@ export function ScanDetailPage() {
           <Card title="Parameters">
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 font-mono text-[12px]">
               {Object.entries(s.params)
-                .filter(([k]) => k !== 'warnings')
+                .filter(([k]) => k !== 'warnings' && k !== 'months')
                 .map(([k, v]) => (
                   <div key={k} className="contents">
                     <dt className="text-soft">{k}</dt>

@@ -71,6 +71,18 @@ def create_scan(body: ScanCreate, admin: AdminUser, db: DbDep) -> ScanDetail:
         build_aoi(feats)
     except AoiError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    if body.params.mode == "seasonal":
+        months = (
+            (body.baseline_end.year - body.baseline_start.year) * 12
+            + (body.baseline_end.month - body.baseline_start.month)
+            + 1
+        )
+        if months < 12:
+            raise HTTPException(
+                status_code=422,
+                detail="Seasonal mode needs a reference period of at least 12 months "
+                "(24 recommended) so the model sees every season.",
+            )
     scan = ScanRepository(db).create(
         parcels,
         (body.baseline_start, body.baseline_end),

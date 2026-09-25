@@ -9,7 +9,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +68,8 @@ class ScanParams:
     overlap: float = 0.3
     min_area_m2: float = 400.0
     cloud_cover_max: int = 30
+    mode: str = "two_window"  # or "seasonal" (design note §5)
+    persist: int = 3  # seasonal: consecutive anomalous months before a pixel is flagged
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ScanParams":
@@ -159,10 +161,12 @@ class ScanRunner:
         aoi = build_aoi(feats)
         grid = make_grid(aoi.bbox_utm, aoi.epsg_utm)
         self._store_aoi(scan, aoi)
+        src = self._source_factory(self.settings)
+        if params.mode == "seasonal":
+            return self._run_seasonal(scan, t0, params, parcels, feats, aoi, grid, src)
         self._warn_season(scan)
 
         self._step(scan, "search")
-        src = self._source_factory(self.settings)
         periods = {
             PeriodType.baseline: (scan.baseline_start, scan.baseline_end),
             PeriodType.current: (scan.current_start, scan.current_end),
@@ -249,6 +253,165 @@ class ScanRunner:
         )
         return ScanResult(scan.id, n, n_scenes, secs)
 
+    # ---- seasonal mode (design note §5) -----------------------------------------------------
+
+    def _run_seasonal(
+        self,
+        scan: Scan,
+        t0: float,
+        params: ScanParams,
+        parcels: list[Parcel],
+        feats: list[dict[str, Any]],
+        aoi: Aoi,
+        grid: TargetGrid,
+        src: Any,
+    ) -> ScanResult:
+        """Fit a seasonal model to the baseline months, flag persistent anomalies in the current
+        months, date each region's onset. Optical drives the detection; radar anomaly and the
+        same fusion rule as two-window mode set the confidence class."""
+        from app.pipeline.phenology import (
+            PhenologyParams,
+            RadarPhenologyParams,
+            detect,
+            detect_radar,
+            post_onset_mean,
+        )
+        from app.services.monthly_stack import build_stack, month_list
+
+        months = month_list(scan.baseline_start, scan.current_end)
+        ref = np.array([m <= scan.baseline_end.replace(day=1) for m in months])
+        if ref.sum() < 12:
+            raise ScanFailedError(
+                "short_reference",
+                "Seasonal mode needs at least 12 reference months (24 recommended).",
+            )
+        if (~ref).sum() < params.persist:
+            raise ScanFailedError(
+                "short_current",
+                f"Seasonal mode needs at least {params.persist} monitored month(s) after the "
+                "reference period.",
+            )
+
+        self._step(scan, "search", f"Building {len(months)} monthly composites")
+        cache = self.settings.data_dir / "cache" / "monthly"
+
+        def progress(i: int, n: int, m: date) -> None:
+            self.scans.set_progress(
+                scan, "search", 5 + int(60 * i / n), f"Month {m:%Y-%m} ({i}/{n})"
+            )
+            self.db.commit()
+
+        stack = build_stack(src, grid, aoi.bbox_wgs84, months, cache, progress)
+        n_opt = sum(1 for n in stack.n_optical if n)
+        n_rad = sum(1 for n in stack.n_radar if n)
+        if n_opt < 12:
+            raise ScanFailedError(
+                "no_optical_scenes",
+                f"Only {n_opt} of {len(months)} months have clear Sentinel-2 data; seasonal mode "
+                "needs at least 12.",
+            )
+        for i, m in enumerate(months):
+            if stack.n_optical[i] == 0 and stack.n_radar[i] == 0:
+                continue
+            period = PeriodType.baseline if ref[i] else PeriodType.current
+            self.scans.add_scene(
+                scan,
+                SensorType.sentinel2,
+                period,
+                f"monthly-{m:%Y-%m}",
+                datetime.combine(m, datetime.min.time(), tzinfo=UTC),
+                meta={"optical_scenes": stack.n_optical[i], "radar_scenes": stack.n_radar[i]},
+            )
+        self.db.commit()
+
+        self._step(scan, "change", "Fitting seasonal model")
+        pp = PhenologyParams(
+            t_bui=params.t_bui, t_ndvi_drop=params.t_ndvi_drop, persist=params.persist
+        )
+        water_ever = stack.water.mean(0) >= 0.25  # design note §2: water-prone pixels are excluded
+        ch, _, _ = detect(stack.bui, stack.ndvi, stack.month_index, ref, pp, water=water_ever)
+        rp = RadarPhenologyParams(t_sar_db=params.t_sar_db, persist=max(1, params.persist - 1))
+        rch, _ = detect_radar(stack.vv_db, stack.month_index, ref, rp, water=water_ever)
+        d_bui = post_onset_mean(ch.anomaly_bui, ch.onset_index)
+        d_ndvi = post_onset_mean(ch.anomaly_ndvi, ch.onset_index)
+        d_sig = post_onset_mean(rch.anomaly_bui, rch.onset_index)
+        d_sig = np.where(np.isfinite(d_sig), d_sig, 0.0).astype(np.float32)
+
+        self._step(scan, "fusion")
+        rad_clean = clean_mask(rch.mask) if n_rad >= 6 else np.zeros_like(rch.mask)
+        optical = mask_to_regions(clean_mask(ch.mask), grid, min_area_m2=params.min_area_m2)
+        radar = mask_to_regions(rad_clean, grid, min_area_m2=params.min_area_m2)
+        fused = fuse(
+            optical,
+            radar,
+            rad_clean,
+            np.where(np.isfinite(d_bui), d_bui, 0.0),
+            d_sig,
+            FusionParams(overlap_threshold=params.overlap),
+        )
+
+        self._step(scan, "persist")
+        base, cur = self._seasonal_evidence_composites(src, aoi, grid, scan, params)
+        onsets = {}
+        for f in fused:
+            src_onset = (
+                ch.onset_index
+                if f.region.pixel_mask[ch.onset_index >= 0].any()
+                else rch.onset_index
+            )
+            vals = src_onset[f.region.pixel_mask]
+            vals = vals[vals >= 0]
+            if vals.size:
+                onsets[id(f)] = months[int(np.median(vals))]
+        n = self._persist(scan, parcels, feats, fused, grid, d_ndvi, base, cur, d_bui, onsets)
+        p = dict(scan.params)
+        p["months"] = {
+            "total": len(months),
+            "reference": int(ref.sum()),
+            "with_optical": n_opt,
+            "with_radar": n_rad,
+        }
+        if n_rad < 6:
+            p["warnings"] = [
+                *p.get("warnings", []),
+                "Too few months with Sentinel-1 data; radar confirmation was not used.",
+            ]
+        scan.params = p
+        msg = f"{n} detection{'s' if n != 1 else ''} in {len(parcels)} parcel(s), seasonal model"
+        self.scans.finish(scan, ScanStatus.succeeded, message=msg)
+        self.db.commit()
+        secs = time.perf_counter() - t0
+        logger.info(
+            "seasonal scan done", extra={"scan_id": str(scan.id), "detections": n, "secs": secs}
+        )
+        return ScanResult(scan.id, n, n_opt + n_rad, secs)
+
+    def _seasonal_evidence_composites(
+        self, src: Any, aoi: Aoi, grid: TargetGrid, scan: Scan, params: ScanParams
+    ) -> tuple[PeriodComposites | None, PeriodComposites | None]:
+        """Before/after chips for the evidence pack: last 3 reference months vs last 3 monitored
+        months. Best-effort — a seasonal scan never fails because chips could not be made."""
+        from datetime import timedelta
+
+        out: list[PeriodComposites | None] = []
+        for end in (scan.baseline_end, scan.current_end):
+            rng = (end - timedelta(days=92), end)
+            try:
+                s2 = src.search_optical(aoi.bbox_wgs84, rng, params.cloud_cover_max)
+                s1 = src.search_radar(aoi.bbox_wgs84, rng)
+                out.append(
+                    PeriodComposites(
+                        optical=build_optical_composite(src, s2, grid),
+                        radar=build_radar_composite(src, s1, grid),
+                        optical_scenes=s2,
+                        radar_scenes=s1,
+                    )
+                )
+            except Exception:  # noqa: BLE001 - evidence is best-effort
+                logger.exception("evidence composite failed", extra={"scan_id": str(scan.id)})
+                out.append(None)
+        return out[0], out[1]
+
     # ---- helpers --------------------------------------------------------------------------
     def _scan_parcels(self, scan: Scan) -> list[Parcel]:
         ids = self.scans.parcel_ids(scan)
@@ -303,9 +466,10 @@ class ScanRunner:
         fused: list[FusedRegion],
         grid: TargetGrid,
         d_ndvi: np.ndarray,
-        base: PeriodComposites,
-        cur: PeriodComposites,
+        base: PeriodComposites | None,
+        cur: PeriodComposites | None,
         d_bui: np.ndarray,
+        onsets: dict[int, date] | None = None,
     ) -> int:
         n = 0
         for f in fused:
@@ -335,11 +499,14 @@ class ScanRunner:
                     d_ndvi_mean=_finite(dn),
                     d_sigma_vv_mean=_finite(f.d_sigma_vv_mean_db),
                     sar_overlap=float(min(1.0, max(0.0, f.sar_overlap))),
+                    onset_month=(onsets or {}).get(id(f)),
                 )
                 prev = self.detections.find_previous_match(det)
                 if prev is not None:
                     det.matches_detection = prev.id
                 try:
+                    if base is None or cur is None:
+                        raise ImageryError("no before/after composites for evidence chips")
                     files = self.evidence.write_all(
                         scan.id, det.id, c.geom_utm.bounds, grid, base, cur, d_bui
                     )

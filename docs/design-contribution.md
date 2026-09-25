@@ -53,6 +53,15 @@ Any detection matching no labelled site counts as a false positive. The set is s
 seeded from v1's own output, so **it over-states v1's precision and under-states any method
 that finds change v1 did not**; see §6.
 
+**Blind protocol (prepared 2026-09-25, labels pending).** To remove that bias,
+`scripts/make_blind_cells.py` drew 41 random 50 m cells (28 in West-1, 7 in the marsh control,
+6 in the built-up control; seed 7) *before* looking at any output; `docs/samples/blind_cells/`
+holds the cells, a labelling sheet with a Wayback link per cell, and a README. Each cell is
+labelled from Wayback 2020-12-16 vs 2023-06-13 as new_built / no_change / other_change /
+cannot_tell. `scripts/evaluate_blind.py` then scores every method in §4–§5 by whether it flags
+≥ 2 pixels of a cell, with Wilson 95 % intervals. The numbers will replace this paragraph once
+the owner has labelled the sheet — they are not estimated here.
+
 ## 4. Ablation — each element removed in turn
 
 `scripts/ablation.py`, same composites as the shipped scan (baseline Jan–Mar 2020, current
@@ -124,8 +133,18 @@ sites. The built-up control (site 8) stays within ±0.05 of its expected season 
 which is the negative control the method needs.
 
 **Cost.** One month of one parcel takes ~10 s from Planetary Computer; the 60-month AOI stack
-took 10 minutes and is cached. The parcel timeline already shipped in v1.2 (`Change over time`
-card) is the product surface for this; the pixel-level method is the next step behind it.
+took 10 minutes and is cached.
+
+**In the product (v1.3).** The method is a scan mode: *New scan → Seasonal model*. The runner
+builds one Sentinel-2 and one Sentinel-1 composite per month (`app/services/monthly_stack.py`,
+cached per grid and month), fits the seasonal model on the reference months, flags anomalies
+that persist ≥ 3 months in the monitored months, and applies the **same** radar-overlap
+confidence rule as two-window mode — with the radar side now also a seasonal anomaly
+(`phenology.detect_radar`: VV backscatter ≥ 2.5 dB above its own seasonal expectation for
+2 months), so wet-season soil moisture cannot confirm an optical false alarm. Each detection
+carries the month its change began (`onset_month`, median pixel onset), shown as a chip on the
+detail page. A synthetic 36-month test dates a planted April step to April exactly and flags
+no pixel outside it (`tests/integration/test_seasonal_phase9.py`).
 
 ## 6. Limitations, stated plainly
 

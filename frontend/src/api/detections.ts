@@ -39,6 +39,8 @@ export interface DetectionProps {
   centroid: [number, number];
   zone?: ZoneContext | null;
   persistence?: number;
+  /** Seasonal-mode scans: first month the change was visible (YYYY-MM-01). */
+  onset_month?: string | null;
 }
 
 export interface FeatureCollection<P, Id = string> {

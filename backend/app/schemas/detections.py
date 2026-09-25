@@ -1,7 +1,7 @@
 """Detection DTOs (techspec §6; appflow Flow D). Geometry is GeoJSON in EPSG:4326."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -65,6 +65,7 @@ class DetectionProps(BaseModel):
     status_note: str | None
     reviewed_at: datetime | None
     matches_detection: uuid.UUID | None
+    onset_month: date | None = None  # seasonal mode: month the change began
     created_at: datetime
     centroid: list[float]  # [lon, lat]
     zone: ZoneContextOut | None = None  # Phase 9: priority + reference-zone hits

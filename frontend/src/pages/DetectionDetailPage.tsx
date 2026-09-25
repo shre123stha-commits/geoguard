@@ -165,6 +165,7 @@ export function DetectionDetailPage() {
             )}
             {p.zone && <PriorityChip priority={p.zone.priority} />}
             {(p.persistence ?? 1) > 1 && <Chip>seen in {p.persistence} scans in a row</Chip>}
+            {p.onset_month && <Chip>began {monthLabel(p.onset_month)}</Chip>}
           </span>
         }
       />
@@ -501,4 +502,13 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
       <dd>{v}</dd>
     </>
   );
+}
+
+function monthLabel(iso: string): string {
+  const [y, m] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-GB', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }

@@ -153,6 +153,7 @@ def _props(d: Detection, hits: list[ZoneHit] | None = None) -> DetectionProps:
         status_note=d.status_note,
         reviewed_at=d.reviewed_at,
         matches_detection=d.matches_detection,
+        onset_month=d.onset_month,
         created_at=d.created_at,
         centroid=[round(c.x, 6), round(c.y, 6)],
     )
