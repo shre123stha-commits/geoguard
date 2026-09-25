@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/useAuth';
 import { AppShell } from '@/components/AppShell';
@@ -9,7 +10,6 @@ import { DetectionsPage } from '@/pages/DetectionsPage';
 import { HealthPage } from '@/pages/HealthPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ParcelDetailPage } from '@/pages/ParcelDetailPage';
-import { ParcelNewPage } from '@/pages/ParcelNewPage';
 import { ParcelsPage } from '@/pages/ParcelsPage';
 import { ScanDetailPage } from '@/pages/ScanDetailPage';
 import { ScanNewPage } from '@/pages/ScanNewPage';
@@ -18,6 +18,11 @@ import { SchedulesPage } from '@/pages/SchedulesPage';
 import { ReferenceLayersPage } from '@/pages/ReferenceLayersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { UsersPage } from '@/pages/UsersPage';
+
+// Drawing tools (terra-draw + MapLibre) are only needed here; load on demand.
+const ParcelNewPage = lazy(() =>
+  import('@/pages/ParcelNewPage').then((m) => ({ default: m.ParcelNewPage })),
+);
 
 /** Signed-in users only; users with a pending password change are sent to that screen. */
 function RequireAuth() {
@@ -48,7 +53,14 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/parcels" element={<ParcelsPage />} />
-          <Route path="/parcels/new" element={<ParcelNewPage />} />
+          <Route
+            path="/parcels/new"
+            element={
+              <Suspense fallback={null}>
+                <ParcelNewPage />
+              </Suspense>
+            }
+          />
           <Route path="/parcels/:id" element={<ParcelDetailPage />} />
           <Route path="/scans" element={<ScansPage />} />
           <Route path="/scans/new" element={<ScanNewPage />} />
