@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,6 +16,10 @@ class ScanParamsIn(BaseModel):
     overlap: float = Field(default=0.3, ge=0.0, le=1.0)
     min_area_m2: float = Field(default=400.0, ge=100.0, le=100_000.0)
     cloud_cover_max: int = Field(default=30, ge=0, le=100)
+    # "two_window": compare two composites (v1). "seasonal": fit a seasonal model to the
+    # baseline months and flag persistent anomalies in the current months (design note §5).
+    mode: Literal["two_window", "seasonal"] = "two_window"
+    persist: int = Field(default=3, ge=1, le=6)  # seasonal: consecutive anomalous months
 
 
 class ScanCreate(BaseModel):

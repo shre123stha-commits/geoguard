@@ -217,6 +217,7 @@ class Detection(Base):
     d_ndvi_mean: Mapped[float | None] = mapped_column(REAL)
     d_sigma_vv_mean: Mapped[float | None] = mapped_column(REAL)
     sar_overlap: Mapped[float | None] = mapped_column(REAL)
+    onset_month: Mapped[date | None] = mapped_column(Date)  # seasonal mode: first anomalous month
     status: Mapped[DetectionStatus] = mapped_column(
         _enum(DetectionStatus, "detection_status"),
         nullable=False,

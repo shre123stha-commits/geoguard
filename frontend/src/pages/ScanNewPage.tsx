@@ -76,16 +76,39 @@ export function ScanNewPage() {
 
   if (user?.role !== 'admin') return <Navigate to="/scans" replace />;
 
+  const seasonal = params.mode === 'seasonal';
   const errors: string[] = [];
   const days = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 86400000;
   if (ids.length === 0) errors.push('Select at least one parcel.');
-  if (days(base.start, base.end) < 4 || days(cur.start, cur.end) < 4)
-    errors.push('Each period must span at least 5 days.');
-  if (days(base.start, base.end) > 366 || days(cur.start, cur.end) > 366)
-    errors.push('A period cannot exceed one year.');
+  if (seasonal) {
+    if (days(base.start, base.end) < 360)
+      errors.push('The reference period must cover at least 12 months (24 recommended).');
+    if (days(base.start, base.end) > 3 * 366)
+      errors.push('The reference period cannot exceed three years.');
+    if (days(cur.start, cur.end) < 85) errors.push('Monitor at least 3 months.');
+    if (days(cur.start, cur.end) > 2 * 366) errors.push('Monitor at most two years.');
+  } else {
+    if (days(base.start, base.end) < 4 || days(cur.start, cur.end) < 4)
+      errors.push('Each period must span at least 5 days.');
+    if (days(base.start, base.end) > 366 || days(cur.start, cur.end) > 366)
+      errors.push('A period cannot exceed one year.');
+  }
   if (base.end >= cur.start) errors.push('The baseline must end before the current period starts.');
   if (cur.end > isoDate(today)) errors.push('The current period cannot end in the future.');
-  const seasonWarn = seasonGap(base.start, cur.start) > 1;
+  const seasonWarn = !seasonal && seasonGap(base.start, cur.start) > 1;
+
+  const setMode = (mode: 'two_window' | 'seasonal') => {
+    setParams({ ...params, mode });
+    if (mode === 'seasonal') {
+      // sensible default: 24 reference months, then monitor the last 12
+      const curStart = addDays(today, -365);
+      setCur({ start: isoDate(curStart), end: isoDate(today) });
+      setBase({ start: isoDate(addDays(curStart, -731)), end: isoDate(addDays(curStart, -1)) });
+    } else {
+      setCur({ start: isoDate(addDays(today, -60)), end: isoDate(today) });
+      setBase({ start: isoDate(addDays(today, -60 - 365)), end: isoDate(addDays(today, -365)) });
+    }
+  };
 
   const suggestSameSeason = () => {
     const len = Math.max(5, Math.round(days(cur.start, cur.end)));
@@ -98,7 +121,7 @@ export function ScanNewPage() {
       <PageHeader
         eyebrow="Scans"
         title={clone ? 'Clone and edit' : 'New scan'}
-        lead="Choose parcels and two periods. The scan compares cloud-free composites of both and flags likely new built-up surfaces."
+        lead="Choose parcels and periods. The scan flags likely new built-up surfaces, either by comparing two composites or by fitting a seasonal model to a longer history."
       />
       {parcels.data?.total === 0 ? (
         <Card>
@@ -113,33 +136,59 @@ export function ScanNewPage() {
             <Card step="01" title="Parcels">
               <ParcelPicker parcels={parcels.data} value={ids} onChange={setIds} />
             </Card>
-            <Card step="02" title="Periods">
+            <Card step="02" title="Method and periods">
+              <div className="mb-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Method">
+                {(
+                  [
+                    ['two_window', 'Two periods', 'Compare two short, same-season composites.'],
+                    ['seasonal', 'Seasonal model', 'Learn a year of seasons, then date changes.'],
+                  ] as const
+                ).map(([m, label, hint]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={(params.mode ?? 'two_window') === m}
+                    onClick={() => setMode(m)}
+                    className={`rounded-md border px-3 py-2 text-left transition ${
+                      (params.mode ?? 'two_window') === m
+                        ? 'border-cream bg-s3'
+                        : 'border-hair hover:border-cream/40'
+                    }`}
+                  >
+                    <span className="block text-[14px] font-medium">{label}</span>
+                    <span className="block text-[12px] text-soft">{hint}</span>
+                  </button>
+                ))}
+              </div>
               <p className="mb-3 text-[13px] text-soft">
-                Same season in both periods gives the most reliable comparison.
+                {seasonal
+                  ? 'The reference period (baseline) teaches the model what each month normally looks like — at least 12 months, ideally 24. Changes are then dated to the month they began within the monitored (current) period. Builds one composite per month, so it takes longer.'
+                  : 'Same season in both periods gives the most reliable comparison.'}
               </p>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Current from">
+                <Field label={seasonal ? 'Monitor from' : 'Current from'}>
                   <Input
                     type="date"
                     value={cur.start}
                     onChange={(e) => setCur({ ...cur, start: e.target.value })}
                   />
                 </Field>
-                <Field label="Current to">
+                <Field label={seasonal ? 'Monitor to' : 'Current to'}>
                   <Input
                     type="date"
                     value={cur.end}
                     onChange={(e) => setCur({ ...cur, end: e.target.value })}
                   />
                 </Field>
-                <Field label="Baseline from">
+                <Field label={seasonal ? 'Reference from' : 'Baseline from'}>
                   <Input
                     type="date"
                     value={base.start}
                     onChange={(e) => setBase({ ...base, start: e.target.value })}
                   />
                 </Field>
-                <Field label="Baseline to">
+                <Field label={seasonal ? 'Reference to' : 'Baseline to'}>
                   <Input
                     type="date"
                     value={base.end}
@@ -147,13 +196,15 @@ export function ScanNewPage() {
                   />
                 </Field>
               </div>
-              <button
-                type="button"
-                onClick={suggestSameSeason}
-                className="mt-3 text-[13px] text-soft underline underline-offset-4 hover:text-cream"
-              >
-                Use the same season one year earlier
-              </button>
+              {!seasonal && (
+                <button
+                  type="button"
+                  onClick={suggestSameSeason}
+                  className="mt-3 text-[13px] text-soft underline underline-offset-4 hover:text-cream"
+                >
+                  Use the same season one year earlier
+                </button>
+              )}
               {seasonWarn && (
                 <p className="mt-2 text-[13px] text-medium" role="status">
                   ⚠ The two periods start in different seasons; vegetation and water differences may

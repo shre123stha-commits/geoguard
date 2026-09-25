@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { DEFAULT_PARAMS, type ScanParams } from '@/api/scans';
 import { Field, Input } from './ui';
 
-type Key = keyof Omit<ScanParams, 'warnings'>;
+type Key =
+  'cloud_cover_max' | 'min_area_m2' | 't_bui' | 't_ndvi_drop' | 't_sar_db' | 'overlap' | 'persist';
 const FIELDS: { k: Key; label: string; hint: string; step: number; min: number; max: number }[] = [
   {
     k: 'cloud_cover_max',
@@ -52,6 +53,14 @@ const FIELDS: { k: Key; label: string; hint: string; step: number; min: number; 
     min: 0,
     max: 1,
   },
+  {
+    k: 'persist',
+    label: 'Persistence (seasonal)',
+    hint: 'Consecutive anomalous months before a pixel counts',
+    step: 1,
+    min: 1,
+    max: 6,
+  },
 ];
 
 /** Collapsible "Advanced" thresholds with defaults prefilled (appflow Flow C step 4). */
@@ -96,7 +105,7 @@ export function AdvancedParams({
           ))}
           <button
             type="button"
-            onClick={() => onChange({})}
+            onClick={() => onChange(value.mode ? { mode: value.mode } : {})}
             className="text-left text-[12px] text-soft underline underline-offset-4"
           >
             Reset to defaults

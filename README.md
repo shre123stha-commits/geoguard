@@ -138,7 +138,7 @@ Every confirmed `high` detection then e-mails the recipients (threshold adjustab
 | Step | Where | Notes |
 |---|---|---|
 | Add parcels | **Parcels → Add parcels** | Upload GeoJSON (WGS84, ≤ 5 MB, ≤ 500 features) or draw on the map. Invalid geometries are listed and skipped, never silently dropped. |
-| Run a scan | **Scans → New scan** | Pick parcels and two periods. Same season in both periods gives the most reliable result. Progress shows live; a typical 1–2 km² area takes 1–3 min online, seconds offline. |
+| Run a scan | **Scans → New scan** | Pick parcels and a **Method**. *Two periods*: same season in both periods gives the most reliable result; 1–3 min online. *Seasonal model*: give it 12–24 reference months and the months to monitor; it learns what every month normally looks like, flags changes that persist for 3 months and dates each one to the month it began ("began Apr 2023" on the detection). Builds one composite per month, so the first run over an area takes 10–20 min online; later runs reuse the cache. |
 | Review | **Detections** | Sorted by confidence then size. Open a row: satellite map with the outline, before/after slider, change map, measurements. **Confirm**, **Plan field visit**, or **Dismiss** with a reason. Every change is in the history. |
 | Report | Detection page → **Generate report** | One-page PDF with evidence, measurements, history and the disclaimer. |
 | Export | **Detections → GeoJSON / CSV** | Honours the current filters. GeoJSON opens in QGIS; CSV (with WKT) opens in Excel. |
@@ -189,7 +189,7 @@ fixed subfolders, opaque 500 responses, no secrets in the repository (`.env` is 
    treat `medium` and `low` as prompts to look, not as results.
 3. **Clouds.** Monsoon months may have too few clear scenes; the scan warns when the
    composite is thin. Prefer dry-season windows.
-4. **Timing.** A detection tells you change happened *between* the two windows, not when. (See `docs\design-contribution.md` §5 for the seasonal-model method that dates the onset month.) Use the parcel's **Change over time** card to narrow it down to a month (cloud-free months only).
+4. **Timing.** In two-period mode a detection tells you change happened *between* the two windows, not when; the **Seasonal model** mode (New scan → Method) dates each detection to the month it began, at the cost of building one composite per month (see `docs\design-contribution.md` §5). Use the parcel's **Change over time** card to narrow it down to a month (cloud-free months only).
 5. **Evidence base.** Precision figures come from one landscape and 9 labelled sites
    (`docs/evaluation.md`); they are indicative. Label more sites as you review.
 6. **Dependencies.** Imagery comes from public catalogues whose terms and uptime can change;

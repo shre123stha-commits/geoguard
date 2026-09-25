@@ -133,7 +133,58 @@ def detect(
     cond &= ~ref_mask[:, None, None]  # never flag inside the reference period
     clear = np.isfinite(a_bui) & np.isfinite(a_ndvi)
 
-    # Run length over clear months only (cloudy months neither extend nor break a run).
+    onset = _onset_from_runs(cond, clear, params.persist, params.hold_frac)
+    return (
+        PhenologyChange(
+            mask=onset >= 0, onset_index=onset, anomaly_bui=a_bui, anomaly_ndvi=a_ndvi, active=cond
+        ),
+        mb,
+        mn,
+    )
+
+
+# ---- radar (Sentinel-1 VV) and fusion ------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RadarPhenologyParams:
+    t_sar_db: float = 2.5  # VV anomaly threshold (dB), same scale as the v1 Δσ° threshold
+    persist: int = 2
+    min_ref_months: int = 8
+    hold_frac: float = 0.4
+    min_clear_frac: float = 0.5
+
+
+def detect_radar(
+    vv_db: np.ndarray,
+    month_index: np.ndarray,
+    ref_mask: np.ndarray,
+    params: RadarPhenologyParams | None = None,
+    water: np.ndarray | None = None,
+) -> tuple[PhenologyChange, HarmonicModel]:
+    """Same seasonal-anomaly logic on VV backscatter: a new structure raises σ° permanently,
+    soil-moisture seasonality does not. Returns onset per pixel like `detect`."""
+    p = params or RadarPhenologyParams()
+    m = fit_harmonic(vv_db[ref_mask], month_index[ref_mask], p.min_ref_months)
+    a = (vv_db - m.predict(month_index)).astype(np.float32)
+    clear_frac = np.isfinite(vv_db).reshape(vv_db.shape[0], -1).mean(1)
+    a[clear_frac < p.min_clear_frac] = np.nan
+    cond = a >= p.t_sar_db
+    if water is not None:
+        cond &= ~water if water.ndim == 3 else ~water[None]
+    cond &= ~ref_mask[:, None, None]
+    onset = _onset_from_runs(cond, np.isfinite(a), p.persist, p.hold_frac)
+    return (
+        PhenologyChange(
+            mask=onset >= 0, onset_index=onset, anomaly_bui=a, anomaly_ndvi=a, active=cond
+        ),
+        m,
+    )
+
+
+def _onset_from_runs(
+    cond: np.ndarray, clear: np.ndarray, persist: int, hold_frac: float
+) -> np.ndarray:
     T, H, W = cond.shape
     run = np.zeros((H, W), dtype=np.int16)
     start = np.full((H, W), -1, dtype=np.int32)
@@ -143,20 +194,23 @@ def detect(
         new_run = k & c & (run == 0)
         start[new_run] = t
         run = np.where(k, np.where(c, run + 1, 0), run)
-        hit = (run >= params.persist) & (onset < 0)
+        hit = (run >= persist) & (onset < 0)
         onset[hit] = start[hit]
-    # Permanence: from onset to the end of the record the condition must hold in most clear
-    # months. Built surface stays built; a drought or a cleared-then-regrown plot does not.
-    if params.hold_frac > 0:
+    if hold_frac > 0:
         after = np.arange(T)[:, None, None] >= onset[None]
         n_clear = (clear & after).sum(0)
         n_true = (cond & clear & after).sum(0)
-        keep = (onset >= 0) & (n_true >= params.hold_frac * np.maximum(n_clear, 1))
+        keep = (onset >= 0) & (n_true >= hold_frac * np.maximum(n_clear, 1))
         onset = np.where(keep, onset, -1)
-    return (
-        PhenologyChange(
-            mask=onset >= 0, onset_index=onset, anomaly_bui=a_bui, anomaly_ndvi=a_ndvi, active=cond
-        ),
-        mb,
-        mn,
-    )
+    return onset
+
+
+def post_onset_mean(anomaly: np.ndarray, onset_index: np.ndarray) -> np.ndarray:
+    """Mean anomaly from each pixel's onset to the end (NaN where no onset) — the seasonal
+    analogue of v1's ΔBUI / Δσ° per-pixel layers, used for scoring fused regions."""
+    T = anomaly.shape[0]
+    after = np.arange(T)[:, None, None] >= np.where(onset_index >= 0, onset_index, T)[None]
+    vals = np.where(after, anomaly, np.nan)
+    with np.errstate(all="ignore"):
+        out = np.nanmean(vals, 0)
+    return np.where(onset_index >= 0, out, np.nan).astype(np.float32)

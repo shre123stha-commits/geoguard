@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from geoalchemy2 import Geography
@@ -33,6 +33,7 @@ class DetectionRepository:
         d_ndvi_mean: float | None = None,
         d_sigma_vv_mean: float | None = None,
         sar_overlap: float | None = None,
+        onset_month: date | None = None,
     ) -> Detection:
         geom = geojson_to_multipolygon(geometry)
         det = Detection(
@@ -49,6 +50,7 @@ class DetectionRepository:
             d_ndvi_mean=d_ndvi_mean,
             d_sigma_vv_mean=d_sigma_vv_mean,
             sar_overlap=sar_overlap,
+            onset_month=onset_month,
         )
         self.db.add(det)
         self.db.flush()

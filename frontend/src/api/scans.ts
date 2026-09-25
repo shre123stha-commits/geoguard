@@ -10,7 +10,12 @@ export interface ScanParams {
   overlap: number;
   min_area_m2: number;
   cloud_cover_max: number;
+  /** 'two_window' compares two composites; 'seasonal' fits a seasonal model to the baseline
+   *  months and dates persistent anomalies in the current months. */
+  mode?: 'two_window' | 'seasonal';
+  persist?: number;
   warnings?: string[];
+  months?: { total: number; reference: number; with_optical: number; with_radar: number };
 }
 
 export const DEFAULT_PARAMS: ScanParams = {
@@ -20,6 +25,7 @@ export const DEFAULT_PARAMS: ScanParams = {
   overlap: 0.3,
   min_area_m2: 400,
   cloud_cover_max: 30,
+  persist: 3,
 };
 
 export interface Scan {
