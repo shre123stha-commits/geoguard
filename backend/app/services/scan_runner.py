@@ -25,6 +25,8 @@ from app.pipeline.composite import (
     PeriodComposites,
     build_optical_composite,
     build_radar_composite,
+    select_optical,
+    select_radar,
 )
 from app.pipeline.fusion import ALGORITHM_VERSION, FusedRegion, FusionParams, fuse
 from app.pipeline.grid import TargetGrid, make_grid
@@ -173,8 +175,8 @@ class ScanRunner:
         }
         scenes: dict[PeriodType, tuple[list[SceneRef], list[SceneRef]]] = {}
         for period, rng in periods.items():
-            s2 = src.search_optical(aoi.bbox_wgs84, rng, params.cloud_cover_max)
-            s1 = src.search_radar(aoi.bbox_wgs84, rng)
+            s2 = select_optical(src.search_optical(aoi.bbox_wgs84, rng, params.cloud_cover_max))
+            s1 = select_radar(src.search_radar(aoi.bbox_wgs84, rng))
             if not s2:
                 raise ScanFailedError(
                     "no_optical_scenes",

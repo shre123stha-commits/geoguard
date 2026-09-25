@@ -39,6 +39,15 @@ _GDAL_ENV = {
     # Fail fast when the storage host is unreachable (some networks block Azure Blob Storage).
     "GDAL_HTTP_CONNECTTIMEOUT": "10",
     "GDAL_HTTP_TIMEOUT": "60",
+    # Fewer round-trips per COG: merge adjacent range requests, reuse one HTTP/2 connection,
+    # read a bigger header block at open (S2 tiles have large IFD tables) and keep block cache.
+    "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES": "YES",
+    "GDAL_HTTP_MULTIPLEX": "YES",
+    "GDAL_HTTP_VERSION": "2",
+    "GDAL_INGESTED_BYTES_AT_OPEN": "65536",
+    "CPL_VSIL_CURL_CHUNK_SIZE": "1048576",
+    "VSI_CACHE": "TRUE",
+    "VSI_CACHE_SIZE": "67108864",
 }
 
 
