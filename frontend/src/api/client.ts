@@ -9,8 +9,23 @@ export class ApiRequestError extends Error {
     public readonly status: number,
     public readonly body: ApiError | null,
   ) {
-    super(body?.error.message ?? `Request failed with status ${status}`);
+    super(describe(status, body));
   }
+}
+
+/** Human message: for validation errors, show the server's first concrete reason. */
+function describe(status: number, body: ApiError | null): string {
+  if (!body) return `Request failed with status ${status}`;
+  const details = body.error.details;
+  if (status === 422 && Array.isArray(details) && details.length > 0) {
+    const d = details[0] as { msg?: string; loc?: unknown[] };
+    if (typeof d.msg === 'string') {
+      const field = Array.isArray(d.loc) ? d.loc.filter((x) => x !== 'body').join('.') : '';
+      const msg = d.msg.replace(/^Value error, /, '');
+      return field ? `${field}: ${msg}` : msg;
+    }
+  }
+  return body.error.message;
 }
 
 export const API_BASE = '/api/v1';

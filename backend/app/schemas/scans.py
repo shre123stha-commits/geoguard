@@ -38,14 +38,28 @@ class ScanCreate(BaseModel):
             raise ValueError("current_start must be on or before current_end")
         if self.baseline_end >= self.current_start:
             raise ValueError("the baseline period must end before the current period starts")
-        for a, b, name in (
-            (self.baseline_start, self.baseline_end, "baseline"),
-            (self.current_start, self.current_end, "current"),
-        ):
-            if (b - a).days < 4:
-                raise ValueError(f"the {name} period must span at least 5 days")
-            if (b - a).days > 366:
-                raise ValueError(f"the {name} period must not exceed one year")
+        if self.params.mode == "seasonal":
+            ref_days = (self.baseline_end - self.baseline_start).days
+            cur_days = (self.current_end - self.current_start).days
+            if ref_days < 360:
+                raise ValueError(
+                    "seasonal mode needs a reference period of at least 12 months (24 recommended)"
+                )
+            if ref_days > 3 * 366:
+                raise ValueError("the reference period must not exceed three years")
+            if cur_days < 27:
+                raise ValueError("seasonal mode needs at least one full month to monitor")
+            if cur_days > 2 * 366:
+                raise ValueError("the monitored period must not exceed two years")
+        else:
+            for a, b, name in (
+                (self.baseline_start, self.baseline_end, "baseline"),
+                (self.current_start, self.current_end, "current"),
+            ):
+                if (b - a).days < 4:
+                    raise ValueError(f"the {name} period must span at least 5 days")
+                if (b - a).days > 366:
+                    raise ValueError(f"the {name} period must not exceed one year")
         if self.baseline_start < date(2015, 6, 23):
             raise ValueError("Sentinel-2 data starts on 2015-06-23")
         return self

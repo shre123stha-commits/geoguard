@@ -151,3 +151,27 @@ def test_seasonal_runner_fails_cleanly_on_short_current(
     else:  # pragma: no cover
         raise AssertionError("expected ScanFailedError")
     assert scan.status == ScanStatus.failed and scan.error_code == "short_current"
+
+
+def test_seasonal_api_accepts_two_year_reference(
+    seeded: tuple[TestClient, Session, str],
+) -> None:
+    client, _, pid = seeded
+    r = client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})
+    hdr = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    body = {
+        "parcel_ids": [pid],
+        "baseline_start": "2023-09-25",
+        "baseline_end": "2025-09-24",
+        "current_start": "2025-09-25",
+        "current_end": "2026-09-25",
+        "params": {"mode": "seasonal"},
+    }
+    r = client.post("/api/v1/scans", json=body, headers=hdr)
+    assert r.status_code == 201, r.text
+    assert r.json()["params"]["mode"] == "seasonal"
+    # two-window mode still rejects a two-year baseline, with the reason in details
+    body["params"] = {"mode": "two_window"}
+    r = client.post("/api/v1/scans", json=body, headers=hdr)
+    assert r.status_code == 422
+    assert "must not exceed one year" in r.json()["error"]["details"][0]["msg"]
